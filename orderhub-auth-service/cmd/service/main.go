@@ -1,11 +1,13 @@
 package main
 
 import (
+	"auth-service/config"
 	"os"
 
 	"orderhub-utils-go/logger"
 
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -19,5 +21,6 @@ func main() {
 
 	log := logger.L()
 
-	_ = log
+	cfg := config.Load(log)
+	log.Info("Loaded configuration", zap.Any("config", cfg))
 }
