@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"orderhub-utils-go/database"
 	"os"
 	"strconv"
 	"strings"
@@ -25,12 +26,7 @@ type JWT struct {
 }
 
 type DB struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	Name     string
-	SSLMode  string
+	database.Config
 }
 
 type Redis struct {
@@ -51,12 +47,14 @@ func Load(log *zap.Logger) *Config {
 			RefreshExp: parseDurationWithDays(getEnv("REFRESH_EXP", log)),
 		},
 		DB: DB{
-			Host:     getEnv("DB_HOST", log),
-			Port:     getEnv("DB_PORT", log),
-			User:     getEnv("DB_USER", log),
-			Password: getEnv("DB_PASSWORD", log),
-			Name:     getEnv("DB_NAME", log),
-			SSLMode:  getEnv("DB_SSLMODE", log),
+			Config: database.Config{
+				Host:     getEnv("DB_HOST", log),
+				Port:     getEnv("DB_PORT", log),
+				User:     getEnv("DB_USER", log),
+				Password: getEnv("DB_PASSWORD", log),
+				Name:     getEnv("DB_NAME", log),
+				SSLMode:  getEnv("DB_SSLMODE", log),
+			},
 		},
 		Redis: Redis{
 			Enabled:    getEnv("REDIS_ENABLED", log) == "true",
