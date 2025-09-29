@@ -66,6 +66,24 @@ func ConnectDB(cfg *Config, log *zap.Logger) *gorm.DB {
 	return db
 }
 
+// ConnectDBForMigration подключается к БД с настройками для миграций
+func ConnectDBForMigration(cfg *Config, log *zap.Logger) *gorm.DB {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		PrepareStmt:                              false,
+		DisableForeignKeyConstraintWhenMigrating: true, // FK создадим вручную
+	})
+	if err != nil {
+		log.Fatal("Не удалось подключиться к базе данных для миграции", zap.Error(err))
+		return nil
+	}
+
+	log.Info("Подключение к базе данных для миграции успешно установлено")
+	return db
+}
+
 func CloseDB(db *gorm.DB, log *zap.Logger) {
 	if db == nil {
 		return
