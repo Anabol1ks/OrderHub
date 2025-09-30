@@ -1,0 +1,19 @@
+package repository
+
+import "gorm.io/gorm"
+
+type Repository struct {
+	DB            *gorm.DB
+	Users         UserRepo
+	RefreshTokens RefreshRepo
+}
+
+func buildRepository(db *gorm.DB) *Repository {
+	return &Repository{
+		DB:            db,
+		Users:         NewUserRepo(db),
+		RefreshTokens: NewRefreshRepo(db),
+	}
+}
+
+func New(db *gorm.DB) *Repository { return buildRepository(db) }
