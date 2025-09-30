@@ -28,19 +28,19 @@ func (r *refreshRepo) Create(ctx context.Context, t *models.RefreshToken) error 
 }
 
 func (r *refreshRepo) RevokeByHash(ctx context.Context, userID uuid.UUID, hash string) (bool, error) {
-	res := r.db.WithContext(ctx).Model(&models.RefreshToken{}).Where("user_id = ? AND hash = ?", userID, hash).Update("revoked", true)
+	res := r.db.WithContext(ctx).Model(&models.RefreshToken{}).Where("user_id = ? AND token_hash = ?  AND revoked = false", userID, hash).Update("revoked", true)
 	return res.RowsAffected > 0, res.Error
 }
 
 func (r *refreshRepo) RevokeAll(ctx context.Context, userID uuid.UUID) (int64, error) {
-	res := r.db.WithContext(ctx).Model(&models.RefreshToken{}).Where("user_id = ?", userID).Update("revoked", true)
+	res := r.db.WithContext(ctx).Model(&models.RefreshToken{}).Where("user_id = ? AND revoked = false", userID).Update("revoked", true)
 	return res.RowsAffected, res.Error
 }
 
 func (r *refreshRepo) Touch(ctx context.Context, userID uuid.UUID, hash string, at time.Time) error {
 	return r.db.WithContext(ctx).
 		Model(&models.RefreshToken{}).
-		Where("user_id=? AND hash=?", userID.String(), hash).
+		Where("user_id=? AND token_hash=? AND revoked = false", userID.String(), hash).
 		Update("last_used_at", at).Error
 }
 
