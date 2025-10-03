@@ -6,3 +6,7 @@ migrate:
 
 doc:
 	docker-compose -f docker-compose.yml up -d
+
+.PHONY: test
+test:
+		go test ./test/... -count=1

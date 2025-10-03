@@ -15,6 +15,7 @@ type RefreshRepo interface {
 	RevokeAll(ctx context.Context, userID uuid.UUID) (int64, error)
 	Touch(ctx context.Context, userID uuid.UUID, hash string, at time.Time) error
 	IsActive(ctx context.Context, userID uuid.UUID, hash string, now time.Time) (bool, error)
+	GetByHash(ctx context.Context, userID uuid.UUID, hash string) (*models.RefreshToken, error)
 }
 
 type refreshRepo struct{ db *gorm.DB }
@@ -50,4 +51,15 @@ func (r *refreshRepo) IsActive(ctx context.Context, userID uuid.UUID, hash strin
 		Where("user_id=? AND token_hash=? AND revoked=false AND expires_at>?", userID.String(), hash, now).
 		Count(&cnt).Error
 	return cnt > 0, err
+}
+
+func (r *refreshRepo) GetByHash(ctx context.Context, userID uuid.UUID, hash string) (*models.RefreshToken, error) {
+	var token models.RefreshToken
+	err := r.db.WithContext(ctx).Model(&models.RefreshToken{}).
+		Where("user_id=? AND token_hash=? AND revoked=false", userID.String(), hash).
+		First(&token).Error
+	if err != nil {
+		return nil, err
+	}
+	return &token, nil
 }
