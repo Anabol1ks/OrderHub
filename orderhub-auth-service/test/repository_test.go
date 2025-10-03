@@ -133,3 +133,85 @@ func TestRefreshRepo(t *testing.T) {
 		t.Fatal("expected not found error, got nil")
 	}
 }
+
+func TestPasswordResetRepo(t *testing.T) {
+	db := testutil.SetupTestPostgres(t)
+
+	// Запускаем миграцию явно в тесте
+	if err := migrate.MigrateAuthDB(context.Background(), db, zap.NewNop(), migrate.DefaultMigrateOptions()); err != nil {
+		t.Fatalf("migration failed: %v", err)
+	}
+
+	ctx := context.Background()
+
+	repo := repository.New(db)
+
+	u := models.User{
+		Email:    "test@example.com",
+		Password: "password",
+	}
+
+	if err := repo.Users.Create(ctx, &u); err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	pr := models.PasswordResetToken{
+		UserID:    u.ID,
+		CodeHash:  "reset_token_hash",
+		ExpiresAt: time.Now().Add(6 * time.Hour),
+		Email:     u.Email,
+	}
+
+	if err := repo.PasswordReset.Create(ctx, &pr); err != nil {
+		t.Fatalf("failed to create password reset token: %v", err)
+	}
+
+	if getPr, err := repo.PasswordReset.GetValidByHash(ctx, u.ID.String(), pr.CodeHash, time.Now()); err != nil {
+		t.Fatalf("failed to get valid password reset token: %v", err)
+	} else {
+		// Проверяем ключевые поля — даты сравниваем с небольшим допуском
+		if getPr.UserID != pr.UserID {
+			t.Fatalf("retrieved password reset token user id mismatch: got %v want %v", getPr.UserID, pr.UserID)
+		}
+		if getPr.CodeHash != pr.CodeHash {
+			t.Fatalf("retrieved password reset token code hash mismatch: got %v want %v", getPr.CodeHash, pr.CodeHash)
+		}
+		if getPr.Email != pr.Email {
+			t.Fatalf("retrieved password reset token email mismatch: got %v want %v", getPr.Email, pr.Email)
+		}
+		// допускаем небольшую погрешность времени (1 секунда)
+		if !getPr.ExpiresAt.Equal(pr.ExpiresAt) {
+			diff := getPr.ExpiresAt.Sub(pr.ExpiresAt)
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff > time.Second {
+				t.Fatalf("retrieved password reset token expires_at mismatch: got %v want %v (diff %v)", getPr.ExpiresAt, pr.ExpiresAt, diff)
+			}
+		}
+	}
+
+	pr2 := models.PasswordResetToken{
+		UserID:    u.ID,
+		CodeHash:  "reset_token_hash2",
+		ExpiresAt: time.Now().Add(6 * time.Hour),
+		Email:     u.Email,
+	}
+
+	if err := repo.PasswordReset.Create(ctx, &pr2); err != nil {
+		t.Fatalf("failed to create password reset token: %v", err)
+	}
+
+	if _, err := repo.PasswordReset.Consume(ctx, pr2.ID.String()); err != nil {
+		t.Fatalf("failed to consume password reset token: %v", err)
+	}
+
+	if c, err := repo.PasswordReset.DeleteAllForUser(ctx, u.ID.String()); err != nil {
+		t.Fatalf("failed to delete all password reset tokens: %v", err)
+	} else {
+		// Проверяем, что количество удалённых токенов соответствует ожидаемому
+		if c != 2 {
+			t.Fatalf("expected to delete 2 password reset tokens, got %d", c)
+		}
+	}
+}

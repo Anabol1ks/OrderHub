@@ -6,6 +6,7 @@ type Repository struct {
 	DB            *gorm.DB
 	Users         UserRepo
 	RefreshTokens RefreshRepo
+	PasswordReset PasswordResetRepo
 }
 
 func buildRepository(db *gorm.DB) *Repository {
@@ -13,6 +14,7 @@ func buildRepository(db *gorm.DB) *Repository {
 		DB:            db,
 		Users:         NewUserRepo(db),
 		RefreshTokens: NewRefreshRepo(db),
+		PasswordReset: NewPasswordResetRepo(db),
 	}
 }
 
