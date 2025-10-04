@@ -8,7 +8,7 @@ type Repository struct {
 	RefreshTokens     RefreshRepo
 	PasswordReset     PasswordResetRepo
 	EmailVerification EmailVerificationRepo
-	JWK               JWKRepo
+	JWKs              JWKRepo
 	Session           SessionRepo
 }
 
@@ -19,7 +19,7 @@ func buildRepository(db *gorm.DB) *Repository {
 		RefreshTokens:     NewRefreshRepo(db),
 		PasswordReset:     NewPasswordResetRepo(db),
 		EmailVerification: NewEmailVerificationRepo(db),
-		JWK:               NewJWKRepo(db),
+		JWKs:              NewJWKRepo(db),
 		Session:           NewSessionRepo(db),
 	}
 }

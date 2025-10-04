@@ -2,10 +2,17 @@ package main
 
 import (
 	"auth-service/config"
+	"auth-service/internal/hashing"
+	"auth-service/internal/repository"
+	"auth-service/internal/service"
+	"auth-service/internal/token"
+	gtransport "auth-service/internal/transport/grpc"
 	"net"
+	authv1 "orderhub-proto/auth/v1"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"orderhub-utils-go/database"
 	"orderhub-utils-go/logger"
@@ -31,12 +38,30 @@ func main() {
 	db := database.ConnectDB(&cfg.DB.Config, log)
 	defer database.CloseDB(db, log)
 
+	repos := repository.New(db)
+
+	hasher := hashing.NewBcrypt(0)
+	tokens := token.NewHSProvider(
+		cfg.JWT.Access, cfg.JWT.Refresh,
+		"auth-service", "orderhub",
+	)
+
+	authSvc := service.NewAuthService(
+		repos.Users, repos.RefreshTokens, repos.JWKs,
+		hasher, tokens,
+		time.Duration(cfg.JWT.AccessExp),
+		time.Duration(cfg.JWT.RefreshExp),
+	)
+
 	lis, err := net.Listen("tcp", cfg.Port)
 	if err != nil {
 		log.Fatal("failed to listen", zap.Error(err))
 	}
 
 	grpcServer := grpc.NewServer()
+	// Регистрируем gRPC handler
+	authServer := gtransport.NewAuthServer(authSvc, log)
+	authv1.RegisterAuthServiceServer(grpcServer, authServer)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
