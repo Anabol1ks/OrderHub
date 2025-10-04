@@ -44,16 +44,16 @@ func (RefreshToken) TableName() string { return "refresh_tokens" }
 // На вырост: хранение и ротация RSA-ключей для JWKS.
 // Если приватный ключ держишь вне БД — убери поле PrivPEM.
 type JwkKey struct {
-	KID       string     `gorm:"primaryKey;size:128"`
-	Alg       string     `gorm:"type:text;not null;default:'RS256'"`
-	Kty       string     `gorm:"type:text;not null;default:'RSA'"`
-	Use       string     `gorm:"type:text;not null;default:'sig'"`
-	N         string     `gorm:"type:text;not null"`
-	E         string     `gorm:"type:text;not null"`
-	PrivPEM   []byte     `gorm:"type:bytea;not null"`
-	Active    bool       `gorm:"not null;default:false;index"`
-	CreatedAt time.Time  `gorm:"not null;default:now()"`
-	RotatesAt *time.Time `gorm:"index"`
+	KID       string     `gorm:"column:kid;primaryKey;size:128"`
+	Alg       string     `gorm:"column:alg;type:text;not null;default:'RS256'"`
+	Kty       string     `gorm:"column:kty;type:text;not null;default:'RSA'"`
+	Use       string     `gorm:"column:use;type:text;not null;default:'sig'"`
+	N         string     `gorm:"column:n;type:text;not null"`
+	E         string     `gorm:"column:e;type:text;not null"`
+	PrivPEM   []byte     `gorm:"column:priv_pem;type:bytea;not null"`
+	Active    bool       `gorm:"column:active;not null;default:false;index"`
+	CreatedAt time.Time  `gorm:"column:created_at;not null;default:now()"`
+	RotatesAt *time.Time `gorm:"column:rotates_at;index"`
 }
 
 func (JwkKey) TableName() string { return "jwk_keys" }
