@@ -2,6 +2,7 @@ package service
 
 import (
 	"auth-service/internal/models"
+	"auth-service/internal/util"
 	"context"
 	"time"
 
@@ -117,4 +118,67 @@ func (s *AuthService) Login(ctx context.Context, email, password string, meta Cl
 		RefreshHash:      hash,
 	}
 	return user.ID, string(user.Role), pair, nil
+}
+
+func (s *AuthService) Refresh(ctx context.Context, refreshOpaqueHash string, meta ClientMeta) (TokenPair, error) {
+	hash := util.Sha256Base64URL(refreshOpaqueHash)
+	now := s.now()
+	active, err := s.refresh.IsActiveByHash(ctx, hash, now)
+	if err != nil {
+		return TokenPair{}, err
+	}
+	if !active {
+		return TokenPair{}, ErrTokenExpired
+	}
+	rt, err := s.refresh.GetByHashOnly(ctx, hash)
+	if err != nil || rt == nil {
+		if err == nil {
+			err = ErrNotFound
+		}
+		return TokenPair{}, err
+	}
+
+	user, err := s.users.GetByID(ctx, rt.UserID)
+	if err != nil || user == nil {
+		if err == nil {
+			err = ErrNotFound
+		}
+		return TokenPair{}, err
+	}
+
+	if _, err := s.refresh.RevokeByHashOnly(ctx, hash); err != nil {
+		return TokenPair{}, err
+	}
+
+	access, aexp, err := s.tokens.SignAccess(ctx, user.ID, string(user.Role), s.accessTTL)
+	if err != nil {
+		return TokenPair{}, err
+	}
+
+	opaqueNew, hashNew, rexp, err := s.tokens.NewRefresh(ctx, user.ID, s.refreshTTL)
+	if err != nil {
+		return TokenPair{}, err
+	}
+
+	newRt := &models.RefreshToken{
+		UserID:    user.ID,
+		TokenHash: hashNew,
+		ClientID:  meta.ClientID,
+		IP:        meta.IP,
+		UserAgent: meta.UserAgent,
+		ExpiresAt: rexp,
+		Revoked:   false,
+		CreatedAt: now,
+	}
+	if err := s.refresh.Create(ctx, newRt); err != nil {
+		return TokenPair{}, err
+	}
+
+	return TokenPair{
+		AccessToken:      access,
+		AccessExpiresAt:  aexp,
+		RefreshOpaque:    opaqueNew,
+		RefreshExpiresAt: rexp,
+		RefreshHash:      hashNew,
+	}, nil
 }

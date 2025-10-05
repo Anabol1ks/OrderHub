@@ -61,7 +61,7 @@ func (s *AuthServer) Register(ctx context.Context, req *authv1.RegisterRequest) 
 }
 
 func toProtoUUID(id uuid.UUID) *commonv1.UUID { /* ... */ return &commonv1.UUID{Value: id.String()} }
-func toProtoTimestamp() *timestamppb.Timestamp { /* ... */
+func toProtoTimestamp() *timestamppb.Timestamp {
 	return timestamppb.New(time.Now())
 }
 func toProtoRole(role string) commonv1.Role {
@@ -105,6 +105,18 @@ func (s *AuthServer) Login(ctx context.Context, req *authv1.LoginRequest) (*auth
 		UserAgent: ptrNonEmpty(ua),
 	}
 
+	grpc.SetHeader(ctx, metadata.Pairs("x-client-id", clientID))
+	cookie := (&http.Cookie{
+		Name:     "cid",
+		Value:    clientID,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Now().AddDate(5, 0, 0),
+	}).String()
+	grpc.SetHeader(ctx, metadata.Pairs("Set-Cookie", cookie))
+
 	u, role, tokenPair, err := s.userService.Login(ctx, req.Email, req.Password, meta)
 	if err != nil {
 		switch {
@@ -119,6 +131,37 @@ func (s *AuthServer) Login(ctx context.Context, req *authv1.LoginRequest) (*auth
 			return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
 		}
 	}
+
+	resp := &authv1.LoginResponse{
+		UserId: toProtoUUID(u),
+		Role:   toProtoRole(role),
+		Tokens: &authv1.TokenPair{
+			AccessToken:      tokenPair.AccessToken,
+			RefreshToken:     tokenPair.RefreshOpaque,
+			AccessExpiresIn:  tokenPair.AccessExpiresAt.Unix(),
+			RefreshExpiresIn: tokenPair.RefreshExpiresAt.Unix(),
+		},
+	}
+	return resp, nil
+}
+
+func (s *AuthServer) Refresh(ctx context.Context, req *authv1.RefreshRequest) (*authv1.RefreshResponse, error) {
+	s.log.Info("Refreshing tokens", zap.String("refresh_token", req.RefreshToken))
+	if err := req.Validate(); err != nil {
+		s.log.Warn("Invalid refresh request", zap.Error(err))
+		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
+	}
+
+	ip := clientIPFromContext(ctx)
+	ua := userAgentFromContext(ctx)
+	clientID := clientIDFromContextOrGenerate(ctx)
+
+	meta := service.ClientMeta{
+		ClientID:  ptrNonEmpty(clientID),
+		IP:        ptrNonEmpty(ip),
+		UserAgent: ptrNonEmpty(ua),
+	}
+
 	grpc.SetHeader(ctx, metadata.Pairs("x-client-id", clientID))
 	cookie := (&http.Cookie{
 		Name:     "cid",
@@ -131,9 +174,22 @@ func (s *AuthServer) Login(ctx context.Context, req *authv1.LoginRequest) (*auth
 	}).String()
 	grpc.SetHeader(ctx, metadata.Pairs("Set-Cookie", cookie))
 
-	resp := &authv1.LoginResponse{
-		UserId: toProtoUUID(u),
-		Role:   toProtoRole(role),
+	tokenPair, err := s.userService.Refresh(ctx, req.RefreshToken, meta)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrNotFound):
+			s.log.Warn("failed", zap.String("op", "Refresh"), zap.Error(err))
+			return nil, status.Errorf(codes.NotFound, "refresh token not found: %v", err)
+		case errors.Is(err, service.ErrTokenExpired):
+			s.log.Warn("failed", zap.String("op", "Refresh"), zap.Error(err))
+			return nil, status.Errorf(codes.Unauthenticated, "refresh token expired: %v", err)
+		default:
+			s.log.Error("failed", zap.String("op", "Refresh"), zap.Error(err))
+			return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
+		}
+	}
+
+	resp := &authv1.RefreshResponse{
 		Tokens: &authv1.TokenPair{
 			AccessToken:      tokenPair.AccessToken,
 			RefreshToken:     tokenPair.RefreshHash,
