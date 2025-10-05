@@ -26,11 +26,9 @@ const (
 )
 
 type RegisterRequest struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Email    string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
-	Password string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	// необязательно, сервер игнорирует и ставит ROLE_CUSTOMER, если не admin flow
-	Role          v1.Role `protobuf:"varint,3,opt,name=role,proto3,enum=orderhub.common.v1.Role" json:"role,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -77,13 +75,6 @@ func (x *RegisterRequest) GetPassword() string {
 		return x.Password
 	}
 	return ""
-}
-
-func (x *RegisterRequest) GetRole() v1.Role {
-	if x != nil {
-		return x.Role
-	}
-	return v1.Role(0)
 }
 
 type RegisterResponse struct {
@@ -993,12 +984,11 @@ var File_auth_v1_auth_proto protoreflect.FileDescriptor
 
 const file_auth_v1_auth_proto_rawDesc = "" +
 	"\n" +
-	"\x12auth/v1/auth.proto\x12\aauth.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17validate/validate.proto\x1a\x16common/v1/common.proto\"\x92\x01\n" +
+	"\x12auth/v1/auth.proto\x12\aauth.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17validate/validate.proto\x1a\x16common/v1/common.proto\"Z\n" +
 	"\x0fRegisterRequest\x12 \n" +
 	"\x05email\x18\x01 \x01(\tB\n" +
 	"\xfaB\ar\x05\x18\xfe\x01`\x01R\x05email\x12%\n" +
-	"\bpassword\x18\x02 \x01(\tB\t\xfaB\x06r\x04\x10\b\x18HR\bpassword\x126\n" +
-	"\x04role\x18\x03 \x01(\x0e2\x18.orderhub.common.v1.RoleB\b\xfaB\x05\x82\x01\x02\x10\x01R\x04role\"\xd7\x01\n" +
+	"\bpassword\x18\x02 \x01(\tB\t\xfaB\x06r\x04\x10\b\x18HR\bpassword\"\xd7\x01\n" +
 	"\x10RegisterResponse\x12;\n" +
 	"\auser_id\x18\x01 \x01(\v2\x18.orderhub.common.v1.UUIDB\b\xfaB\x05\x8a\x01\x02\x10\x01R\x06userId\x12\x1d\n" +
 	"\x05email\x18\x02 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\x12,\n" +
@@ -1102,48 +1092,47 @@ var file_auth_v1_auth_proto_goTypes = []any{
 	(*ConfirmEmailVerificationRequest)(nil), // 14: auth.v1.ConfirmEmailVerificationRequest
 	(*RequestPasswordResetRequest)(nil),     // 15: auth.v1.RequestPasswordResetRequest
 	(*ConfirmPasswordResetRequest)(nil),     // 16: auth.v1.ConfirmPasswordResetRequest
-	(v1.Role)(0),                            // 17: orderhub.common.v1.Role
-	(*v1.UUID)(nil),                         // 18: orderhub.common.v1.UUID
+	(*v1.UUID)(nil),                         // 17: orderhub.common.v1.UUID
+	(v1.Role)(0),                            // 18: orderhub.common.v1.Role
 	(*timestamppb.Timestamp)(nil),           // 19: google.protobuf.Timestamp
 	(*emptypb.Empty)(nil),                   // 20: google.protobuf.Empty
 }
 var file_auth_v1_auth_proto_depIdxs = []int32{
-	17, // 0: auth.v1.RegisterRequest.role:type_name -> orderhub.common.v1.Role
-	18, // 1: auth.v1.RegisterResponse.user_id:type_name -> orderhub.common.v1.UUID
-	17, // 2: auth.v1.RegisterResponse.role:type_name -> orderhub.common.v1.Role
-	19, // 3: auth.v1.RegisterResponse.created_at:type_name -> google.protobuf.Timestamp
-	18, // 4: auth.v1.LoginResponse.user_id:type_name -> orderhub.common.v1.UUID
-	17, // 5: auth.v1.LoginResponse.role:type_name -> orderhub.common.v1.Role
-	4,  // 6: auth.v1.LoginResponse.tokens:type_name -> auth.v1.TokenPair
-	4,  // 7: auth.v1.RefreshResponse.tokens:type_name -> auth.v1.TokenPair
-	18, // 8: auth.v1.IntrospectResponse.user_id:type_name -> orderhub.common.v1.UUID
-	17, // 9: auth.v1.IntrospectResponse.role:type_name -> orderhub.common.v1.Role
-	11, // 10: auth.v1.GetJwksResponse.keys:type_name -> auth.v1.Jwk
-	0,  // 11: auth.v1.AuthService.Register:input_type -> auth.v1.RegisterRequest
-	2,  // 12: auth.v1.AuthService.Login:input_type -> auth.v1.LoginRequest
-	5,  // 13: auth.v1.AuthService.Refresh:input_type -> auth.v1.RefreshRequest
-	7,  // 14: auth.v1.AuthService.Introspect:input_type -> auth.v1.IntrospectRequest
-	9,  // 15: auth.v1.AuthService.Logout:input_type -> auth.v1.LogoutRequest
-	10, // 16: auth.v1.AuthService.GetJwks:input_type -> auth.v1.GetJwksRequest
-	13, // 17: auth.v1.AuthService.RequestEmailVerification:input_type -> auth.v1.RequestEmailVerificationRequest
-	14, // 18: auth.v1.AuthService.ConfirmEmailVerification:input_type -> auth.v1.ConfirmEmailVerificationRequest
-	15, // 19: auth.v1.AuthService.RequestPasswordReset:input_type -> auth.v1.RequestPasswordResetRequest
-	16, // 20: auth.v1.AuthService.ConfirmPasswordReset:input_type -> auth.v1.ConfirmPasswordResetRequest
-	1,  // 21: auth.v1.AuthService.Register:output_type -> auth.v1.RegisterResponse
-	3,  // 22: auth.v1.AuthService.Login:output_type -> auth.v1.LoginResponse
-	6,  // 23: auth.v1.AuthService.Refresh:output_type -> auth.v1.RefreshResponse
-	8,  // 24: auth.v1.AuthService.Introspect:output_type -> auth.v1.IntrospectResponse
-	20, // 25: auth.v1.AuthService.Logout:output_type -> google.protobuf.Empty
-	12, // 26: auth.v1.AuthService.GetJwks:output_type -> auth.v1.GetJwksResponse
-	20, // 27: auth.v1.AuthService.RequestEmailVerification:output_type -> google.protobuf.Empty
-	20, // 28: auth.v1.AuthService.ConfirmEmailVerification:output_type -> google.protobuf.Empty
-	20, // 29: auth.v1.AuthService.RequestPasswordReset:output_type -> google.protobuf.Empty
-	20, // 30: auth.v1.AuthService.ConfirmPasswordReset:output_type -> google.protobuf.Empty
-	21, // [21:31] is the sub-list for method output_type
-	11, // [11:21] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	17, // 0: auth.v1.RegisterResponse.user_id:type_name -> orderhub.common.v1.UUID
+	18, // 1: auth.v1.RegisterResponse.role:type_name -> orderhub.common.v1.Role
+	19, // 2: auth.v1.RegisterResponse.created_at:type_name -> google.protobuf.Timestamp
+	17, // 3: auth.v1.LoginResponse.user_id:type_name -> orderhub.common.v1.UUID
+	18, // 4: auth.v1.LoginResponse.role:type_name -> orderhub.common.v1.Role
+	4,  // 5: auth.v1.LoginResponse.tokens:type_name -> auth.v1.TokenPair
+	4,  // 6: auth.v1.RefreshResponse.tokens:type_name -> auth.v1.TokenPair
+	17, // 7: auth.v1.IntrospectResponse.user_id:type_name -> orderhub.common.v1.UUID
+	18, // 8: auth.v1.IntrospectResponse.role:type_name -> orderhub.common.v1.Role
+	11, // 9: auth.v1.GetJwksResponse.keys:type_name -> auth.v1.Jwk
+	0,  // 10: auth.v1.AuthService.Register:input_type -> auth.v1.RegisterRequest
+	2,  // 11: auth.v1.AuthService.Login:input_type -> auth.v1.LoginRequest
+	5,  // 12: auth.v1.AuthService.Refresh:input_type -> auth.v1.RefreshRequest
+	7,  // 13: auth.v1.AuthService.Introspect:input_type -> auth.v1.IntrospectRequest
+	9,  // 14: auth.v1.AuthService.Logout:input_type -> auth.v1.LogoutRequest
+	10, // 15: auth.v1.AuthService.GetJwks:input_type -> auth.v1.GetJwksRequest
+	13, // 16: auth.v1.AuthService.RequestEmailVerification:input_type -> auth.v1.RequestEmailVerificationRequest
+	14, // 17: auth.v1.AuthService.ConfirmEmailVerification:input_type -> auth.v1.ConfirmEmailVerificationRequest
+	15, // 18: auth.v1.AuthService.RequestPasswordReset:input_type -> auth.v1.RequestPasswordResetRequest
+	16, // 19: auth.v1.AuthService.ConfirmPasswordReset:input_type -> auth.v1.ConfirmPasswordResetRequest
+	1,  // 20: auth.v1.AuthService.Register:output_type -> auth.v1.RegisterResponse
+	3,  // 21: auth.v1.AuthService.Login:output_type -> auth.v1.LoginResponse
+	6,  // 22: auth.v1.AuthService.Refresh:output_type -> auth.v1.RefreshResponse
+	8,  // 23: auth.v1.AuthService.Introspect:output_type -> auth.v1.IntrospectResponse
+	20, // 24: auth.v1.AuthService.Logout:output_type -> google.protobuf.Empty
+	12, // 25: auth.v1.AuthService.GetJwks:output_type -> auth.v1.GetJwksResponse
+	20, // 26: auth.v1.AuthService.RequestEmailVerification:output_type -> google.protobuf.Empty
+	20, // 27: auth.v1.AuthService.ConfirmEmailVerification:output_type -> google.protobuf.Empty
+	20, // 28: auth.v1.AuthService.RequestPasswordReset:output_type -> google.protobuf.Empty
+	20, // 29: auth.v1.AuthService.ConfirmPasswordReset:output_type -> google.protobuf.Empty
+	20, // [20:30] is the sub-list for method output_type
+	10, // [10:20] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_auth_v1_auth_proto_init() }

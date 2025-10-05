@@ -95,17 +95,6 @@ func (m *RegisterRequest) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if _, ok := commonv1.Role_name[int32(m.GetRole())]; !ok {
-		err := RegisterRequestValidationError{
-			field:  "Role",
-			reason: "value must be one of the defined enum values",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
 	if len(errors) > 0 {
 		return RegisterRequestMultiError(errors)
 	}

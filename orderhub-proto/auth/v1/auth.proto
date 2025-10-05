@@ -48,8 +48,6 @@ service AuthService {
 message RegisterRequest {
   string email    = 1 [(validate.rules).string = {email: true,  max_len: 254}];
   string password = 2 [(validate.rules).string = {min_len: 8, max_len: 72}];
-  // необязательно, сервер игнорирует и ставит ROLE_CUSTOMER, если не admin flow
-  orderhub.common.v1.Role   role     = 3 [(validate.rules).enum = {defined_only: true}];
 }
 
 message RegisterResponse {

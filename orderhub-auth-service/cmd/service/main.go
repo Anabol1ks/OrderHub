@@ -20,6 +20,9 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -59,6 +62,14 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
+
+	// Health server
+	healthSrv := health.NewServer()
+	healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	grpc_health_v1.RegisterHealthServer(grpcServer, healthSrv)
+
+	reflection.Register(grpcServer)
+
 	// Регистрируем gRPC handler
 	authServer := gtransport.NewAuthServer(authSvc, log)
 	authv1.RegisterAuthServiceServer(grpcServer, authServer)

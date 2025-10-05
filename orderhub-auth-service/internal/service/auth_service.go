@@ -79,7 +79,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, role string
 func (s *AuthService) Login(ctx context.Context, email, password string, meta ClientMeta) (uuid.UUID, string, TokenPair, error) {
 	user, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
-		return uuid.Nil, "", TokenPair{}, err
+		return uuid.Nil, "", TokenPair{}, ErrNotFound
 	}
 
 	if user == nil || !s.hasher.Compare(user.Password, password) {
@@ -116,5 +116,5 @@ func (s *AuthService) Login(ctx context.Context, email, password string, meta Cl
 		RefreshExpiresAt: rexp,
 		RefreshHash:      hash,
 	}
-	return user.ID, user.Email, pair, nil
+	return user.ID, string(user.Role), pair, nil
 }
