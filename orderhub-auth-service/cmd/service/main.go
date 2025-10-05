@@ -49,6 +49,8 @@ func main() {
 		"auth-service", "orderhub",
 	)
 
+	authInterceptor := gtransport.NewAuthUnaryServerInterceptor(tokens)
+
 	authSvc := service.NewAuthService(
 		repos.Users, repos.RefreshTokens, repos.JWKs,
 		hasher, tokens,
@@ -61,7 +63,9 @@ func main() {
 		log.Fatal("failed to listen", zap.Error(err))
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(authInterceptor),
+	)
 
 	// Health server
 	healthSrv := health.NewServer()

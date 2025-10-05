@@ -4,6 +4,7 @@ import (
 	"auth-service/internal/models"
 	"auth-service/internal/util"
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -181,4 +182,60 @@ func (s *AuthService) Refresh(ctx context.Context, refreshOpaqueHash string, met
 		RefreshExpiresAt: rexp,
 		RefreshHash:      hashNew,
 	}, nil
+}
+
+func (s *AuthService) Logout(ctx context.Context, opaque string) error {
+	if opaque == "" {
+		return errors.New("empty refresh token")
+	}
+	hash := util.Sha256Base64URL(opaque)
+
+	// (необязательно, но полезно) — быстрая проверка активности
+	active, err := s.refresh.IsActiveByHash(ctx, hash, s.now())
+	if err != nil {
+		return err
+	}
+	if !active {
+		return ErrTokenNotFoundOrRevoked
+	}
+
+	ok, err := s.refresh.RevokeByHashOnly(ctx, hash)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrTokenNotFoundOrRevoked
+	}
+	return nil
+}
+
+func (s *AuthService) LogoutAll(ctx context.Context) (int64, error) {
+	userID, ok := UserIDFromContext(ctx)
+	if !ok || userID == uuid.Nil {
+		return 0, errors.New("unauthenticated: user id not found in context")
+	}
+	affected, err := s.refresh.RevokeAll(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
+}
+
+type ctxKey string
+
+const (
+	ctxUserIDKey ctxKey = "auth.user_id"
+	ctxRoleKey   ctxKey = "auth.role"
+)
+
+func WithUserID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, ctxUserIDKey, id)
+}
+func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	v := ctx.Value(ctxUserIDKey)
+	if v == nil {
+		return uuid.Nil, false
+	}
+	id, _ := v.(uuid.UUID)
+	return id, id != uuid.Nil
 }

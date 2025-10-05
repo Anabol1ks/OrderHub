@@ -4,6 +4,7 @@ import (
 	"auth-service/internal/service"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	authv1 "orderhub-proto/auth/v1"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -191,13 +193,49 @@ func (s *AuthServer) Refresh(ctx context.Context, req *authv1.RefreshRequest) (*
 
 	resp := &authv1.RefreshResponse{
 		Tokens: &authv1.TokenPair{
-			AccessToken:      tokenPair.AccessToken,
-			RefreshToken:     tokenPair.RefreshHash,
+			AccessToken: tokenPair.AccessToken,
+			// возвращаем opaque (не hash)
+			RefreshToken:     tokenPair.RefreshOpaque,
 			AccessExpiresIn:  tokenPair.AccessExpiresAt.Unix(),
 			RefreshExpiresIn: tokenPair.RefreshExpiresAt.Unix(),
 		},
 	}
 	return resp, nil
+}
+
+func (s *AuthServer) Logout(ctx context.Context, req *authv1.LogoutRequest) (*emptypb.Empty, error) {
+	s.log.Info("Logging out", zap.String("request", fmt.Sprintf("%+v", req)))
+
+	// Особый случай: пользователь мог прислать JSON с двумя полями all=false и refresh_token.
+	// В proto это oneof, но разные клиенты могут сформировать неоднозначный payload.
+	// Логика: если есть refresh_token (не пустой) — выполняем single logout, игнорируя all=false.
+	if rt := req.GetRefreshToken(); strings.TrimSpace(rt) != "" {
+		refresh := strings.TrimSpace(rt)
+		if err := s.userService.Logout(ctx, refresh); err != nil {
+			switch {
+			case errors.Is(err, service.ErrTokenNotFoundOrRevoked):
+				s.log.Warn("failed", zap.String("op", "Logout"), zap.Error(err))
+				return nil, status.Errorf(codes.NotFound, "refresh token not found or revoked: %v", err)
+			default:
+				s.log.Error("failed", zap.String("op", "Logout"), zap.Error(err))
+				return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
+			}
+		}
+		s.log.Info("refresh token revoked")
+		return &emptypb.Empty{}, nil
+	}
+
+	if req.GetAll() { // mass logout
+		cnt, err := s.userService.LogoutAll(ctx)
+		if err != nil {
+			s.log.Error("failed", zap.String("op", "LogoutAll"), zap.Error(err))
+			return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
+		}
+		s.log.Info("all refresh tokens revoked", zap.Int64("count", cnt))
+		return &emptypb.Empty{}, nil
+	}
+
+	return nil, status.Error(codes.InvalidArgument, "specify refresh_token or all=true")
 }
 
 func clientIPFromContext(ctx context.Context) string {
