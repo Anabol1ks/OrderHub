@@ -2,7 +2,9 @@ package main
 
 import (
 	"api-gateway/config"
-	"context"
+	_ "api-gateway/docs"
+	"api-gateway/internal/auth"
+	"api-gateway/internal/router"
 	"os"
 
 	authv1 "orderhub-proto/auth/v1"
@@ -14,8 +16,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// @Title OrderHub API
+// @Version 1.0
+// @Description API для управления заказами
+// @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
-
 	_ = godotenv.Load()
 	isDev := os.Getenv("ENV") == "development"
 	if err := logger.Init(isDev); err != nil {
@@ -37,12 +45,12 @@ func main() {
 	}
 	defer authConn.Close()
 
-	authClient := authv1.NewAuthServiceClient(authConn)
+	rawAuthClient := authv1.NewAuthServiceClient(authConn)
+	authClient := auth.NewClient(rawAuthClient)
 
-	jwks, err := authClient.GetJwks(context.Background(), &authv1.GetJwksRequest{})
-	if err != nil {
-		log.Error("GetJwks error: ", zap.Error(err))
+	r := router.Router(authClient, log)
+
+	if err := r.Run(":8080"); err != nil {
+		log.Fatal("failed to run http server", zap.Error(err))
 	}
-	log.Info("JWKS keys loaded: ", zap.Any("keys", jwks.Keys))
-
 }
