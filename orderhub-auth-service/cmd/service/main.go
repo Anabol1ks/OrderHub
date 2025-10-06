@@ -44,10 +44,9 @@ func main() {
 	repos := repository.New(db)
 
 	hasher := hashing.NewBcrypt(0)
-	tokens := token.NewHSProvider(
-		cfg.JWT.Access, cfg.JWT.Refresh,
-		"auth-service", "orderhub",
-	)
+
+	jwkStore := repos.JWKs
+	tokens := token.NewRSAProvider(jwkStore, cfg.JWT.Issuer, cfg.JWT.Audience)
 
 	authInterceptor := gtransport.NewAuthUnaryServerInterceptor(tokens)
 

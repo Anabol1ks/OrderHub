@@ -36,7 +36,6 @@ func NewAuthUnaryServerInterceptor(tokens AuthDeps) grpc.UnaryServerInterceptor 
 		if _, ok := public[info.FullMethod]; ok {
 			return handler(ctx, req)
 		}
-		// Backward compatibility: если вдруг сгенерированный метод имеет префикс orderhub.auth.v1 (старый пакет), попробуем обрезать
 		if strings.HasPrefix(info.FullMethod, "/orderhub.auth.v1.") {
 			// Заменяем на актуальный и проверяем
 			alt := strings.Replace(info.FullMethod, "/orderhub.auth.v1.", "/auth.v1.", 1)

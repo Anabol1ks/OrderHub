@@ -19,9 +19,9 @@ type Config struct {
 }
 
 type JWT struct {
-	Access     string
+	Issuer     string
+	Audience   string
 	AccessExp  time.Duration
-	Refresh    string
 	RefreshExp time.Duration
 }
 
@@ -41,9 +41,9 @@ func Load(log *zap.Logger) *Config {
 	return &Config{
 		Port: getEnv("APP_PORT", log),
 		JWT: JWT{
-			Access:     getEnv("ACCESS_SECRET", log),
+			Issuer:     getEnv("JWT_ISSUER", log),
+			Audience:   getEnv("JWT_AUDIENCE", log),
 			AccessExp:  parseDurationWithDays(getEnv("ACCESS_EXP", log)),
-			Refresh:    getEnv("REFRESH_SECRET", log),
 			RefreshExp: parseDurationWithDays(getEnv("REFRESH_EXP", log)),
 		},
 		DB: DB{

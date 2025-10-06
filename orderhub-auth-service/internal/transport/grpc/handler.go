@@ -238,6 +238,58 @@ func (s *AuthServer) Logout(ctx context.Context, req *authv1.LogoutRequest) (*em
 	return nil, status.Error(codes.InvalidArgument, "specify refresh_token or all=true")
 }
 
+func (s *AuthServer) GetJwks(ctx context.Context, req *authv1.GetJwksRequest) (*authv1.GetJwksResponse, error) {
+	s.log.Info("Getting JWKS", zap.String("request", fmt.Sprintf("%+v", req)))
+
+	keys, err := s.userService.GetJwks(ctx)
+	if err != nil {
+		s.log.Error("failed", zap.String("op", "GetJwks"), zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+
+	resp := &authv1.GetJwksResponse{
+		Keys: make([]*authv1.Jwk, 0, len(keys)),
+	}
+	for _, k := range keys {
+		// service.PublicJWK предполагаемые поля: Kid, Kty, Alg, Use, N, E
+		resp.Keys = append(resp.Keys, &authv1.Jwk{
+			Kid: k.KID,
+			Kty: k.Kty,
+			Alg: k.Alg,
+			Use: k.Use,
+			N:   k.N,
+			E:   k.E,
+		})
+	}
+	return resp, nil
+}
+
+func (s *AuthServer) Introspect(ctx context.Context, req *authv1.IntrospectRequest) (*authv1.IntrospectResponse, error) {
+	s.log.Info("Introspecting token", zap.String("request", fmt.Sprintf("%+v", req)))
+
+	active, uid, role, exp, err := s.userService.Introspect(ctx, req.AccessToken)
+	if err != nil {
+		s.log.Error("failed", zap.String("op", "Introspect"), zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+
+	userID := uid
+	if !active || userID == uuid.Nil {
+		userID = uuid.Nil
+	}
+
+	resp := &authv1.IntrospectResponse{
+		Active:  active,
+		UserId:  toProtoUUID(userID),
+		Role:    toProtoRole(role),
+		ExpUnix: exp.Unix(),
+		Scopes:  nil, // пока без scope
+	}
+	return resp, nil
+}
+
+// -------------------------------УТИЛИТЫ----------------------------------
+
 func clientIPFromContext(ctx context.Context) string {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		// x-forwarded-for может быть "ip1, ip2, ..."

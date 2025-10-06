@@ -9,12 +9,12 @@ import (
 )
 
 type PublicJWK struct {
-	KID string
-	Alg string
-	Kty string
-	Use string
-	N   string
-	E   string
+	KID string `gorm:"column:kid"`
+	Alg string `gorm:"column:alg"`
+	Kty string `gorm:"column:kty"`
+	Use string `gorm:"column:use"`
+	N   string `gorm:"column:n"`
+	E   string `gorm:"column:e"`
 }
 
 type JWKRepo interface {

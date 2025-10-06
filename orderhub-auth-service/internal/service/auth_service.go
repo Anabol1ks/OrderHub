@@ -221,6 +221,20 @@ func (s *AuthService) LogoutAll(ctx context.Context) (int64, error) {
 	return affected, nil
 }
 
+func (s *AuthService) GetJwks(ctx context.Context) ([]PublicJWK, error) {
+	// если используешь RSAProvider — просто читай из repo
+	return s.jwks.ListPublic(ctx)
+}
+
+func (s *AuthService) Introspect(ctx context.Context, access string) (bool, uuid.UUID, string, time.Time, error) {
+	claims, err := s.tokens.ParseAndValidateAccess(ctx, access)
+	if err != nil {
+		// недействителен: active=false
+		return false, uuid.Nil, "", time.Time{}, nil
+	}
+	return true, claims.UserID, claims.Role, claims.Exp, nil
+}
+
 type ctxKey string
 
 const (
