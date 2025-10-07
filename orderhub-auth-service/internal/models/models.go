@@ -27,15 +27,16 @@ type User struct {
 func (User) TableName() string { return "users" }
 
 type RefreshToken struct {
-	ID         uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	UserID     uuid.UUID `gorm:"type:uuid;not null;index"`
-	TokenHash  string    `gorm:"not null;index"` // хранить ХЭШ refresh (opaque)
-	ClientID   *string   `gorm:"type:text"`
-	IP         *string   `gorm:"type:inet"`
-	UserAgent  *string   `gorm:"type:text"`
-	ExpiresAt  time.Time `gorm:"not null;index"`
-	Revoked    bool      `gorm:"not null;default:false;index"`
-	CreatedAt  time.Time `gorm:"not null;default:now()"`
+	ID         uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	UserID     uuid.UUID  `gorm:"type:uuid;not null;index"`
+	SessionID  *uuid.UUID `gorm:"type:uuid;index"`
+	TokenHash  string     `gorm:"not null;index"` // хранить ХЭШ refresh (opaque)
+	ClientID   *string    `gorm:"type:text"`
+	IP         *string    `gorm:"type:inet"`
+	UserAgent  *string    `gorm:"type:text"`
+	ExpiresAt  time.Time  `gorm:"not null;index"`
+	Revoked    bool       `gorm:"not null;default:false;index"`
+	CreatedAt  time.Time  `gorm:"not null;default:now()"`
 	LastUsedAt *time.Time
 }
 

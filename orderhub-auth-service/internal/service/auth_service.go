@@ -11,11 +11,12 @@ import (
 )
 
 type AuthService struct {
-	users   UserRepo
-	refresh RefreshRepo
-	jwks    JWKRepo // может быть nil при HS256
-	hasher  PasswordHasher
-	tokens  TokenProvider
+	users    UserRepo
+	refresh  RefreshRepo
+	jwks     JWKRepo // может быть nil при HS256
+	hasher   PasswordHasher
+	tokens   TokenProvider
+	sessions SessionRepo
 
 	accessTTL  time.Duration
 	refreshTTL time.Duration
@@ -34,14 +35,16 @@ func NewAuthService(
 	jwks JWKRepo,
 	hasher PasswordHasher,
 	tokens TokenProvider,
+	sessions SessionRepo,
 	accessTTL, refreshTTL time.Duration,
 ) *AuthService {
 	return &AuthService{
-		users:   users,
-		refresh: refresh,
-		jwks:    jwks,
-		hasher:  hasher,
-		tokens:  tokens,
+		users:    users,
+		refresh:  refresh,
+		jwks:     jwks,
+		hasher:   hasher,
+		tokens:   tokens,
+		sessions: sessions,
 
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
@@ -98,10 +101,32 @@ func (s *AuthService) Login(ctx context.Context, email, password string, meta Cl
 		return uuid.Nil, "", TokenPair{}, err
 	}
 
+	var clientID string
+	if meta.ClientID != nil {
+		clientID = *meta.ClientID
+	} else {
+		clientID = "" // или сгенерировать uuid.NewString()
+	}
+
+	session := &models.UserSession{
+		UserID:     user.ID,
+		ClientID:   clientID,
+		IP:         meta.IP,
+		UserAgent:  meta.UserAgent,
+		CreatedAt:  s.now(),
+		LastSeenAt: s.now(),
+		Revoked:    false,
+	}
+
+	if err := s.sessions.Create(ctx, session); err != nil {
+		return uuid.Nil, "", TokenPair{}, err
+	}
+
 	rt := &models.RefreshToken{
 		UserID:    user.ID,
 		TokenHash: hash,
 		ClientID:  meta.ClientID,
+		SessionID: &session.ID,
 		IP:        meta.IP,
 		UserAgent: meta.UserAgent,
 		ExpiresAt: rexp,
@@ -165,11 +190,15 @@ func (s *AuthService) Refresh(ctx context.Context, refreshOpaqueHash string, met
 		UserID:    user.ID,
 		TokenHash: hashNew,
 		ClientID:  meta.ClientID,
+		SessionID: rt.SessionID,
 		IP:        meta.IP,
 		UserAgent: meta.UserAgent,
 		ExpiresAt: rexp,
 		Revoked:   false,
 		CreatedAt: now,
+	}
+	if rt.SessionID != nil {
+		_ = s.sessions.Touch(ctx, *rt.SessionID, now)
 	}
 	if err := s.refresh.Create(ctx, newRt); err != nil {
 		return TokenPair{}, err
@@ -190,21 +219,29 @@ func (s *AuthService) Logout(ctx context.Context, opaque string) error {
 	}
 	hash := util.Sha256Base64URL(opaque)
 
-	// (необязательно, но полезно) — быстрая проверка активности
-	active, err := s.refresh.IsActiveByHash(ctx, hash, s.now())
-	if err != nil {
+	rt, err := s.refresh.GetByHashOnly(ctx, hash)
+	if err != nil || rt == nil {
+		if err == nil { // не найден
+			return ErrTokenNotFoundOrRevoked
+		}
 		return err
 	}
-	if !active {
+
+	// Ревокуем сам refresh
+	if ok, err := s.refresh.RevokeByHashOnly(ctx, hash); err != nil {
+		return err
+	} else if !ok {
 		return ErrTokenNotFoundOrRevoked
 	}
 
-	ok, err := s.refresh.RevokeByHashOnly(ctx, hash)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return ErrTokenNotFoundOrRevoked
+	if rt.SessionID != nil {
+		stillActive, err := s.refresh.HasActiveBySession(ctx, *rt.SessionID, s.now())
+		if err != nil {
+			return err
+		}
+		if !stillActive {
+			_, _ = s.sessions.Revoke(ctx, *rt.SessionID)
+		}
 	}
 	return nil
 }
@@ -217,6 +254,9 @@ func (s *AuthService) LogoutAll(ctx context.Context) (int64, error) {
 	affected, err := s.refresh.RevokeAll(ctx, userID)
 	if err != nil {
 		return 0, err
+	}
+	if s.sessions != nil {
+		_, _ = s.sessions.RevokeAllByUser(ctx, userID)
 	}
 	return affected, nil
 }

@@ -28,6 +28,7 @@ type RefreshRepo interface {
 	GetByHashOnly(ctx context.Context, hash string) (*models.RefreshToken, error)
 	IsActiveByHash(ctx context.Context, hash string, now time.Time) (bool, error)
 	RevokeByHashOnly(ctx context.Context, hash string) (bool, error)
+	HasActiveBySession(ctx context.Context, sessionID uuid.UUID, now time.Time) (bool, error)
 }
 
 type JWKRepo interface {
@@ -63,4 +64,12 @@ type TokenProvider interface {
 	ParseAndValidateAccess(ctx context.Context, token string) (*Claims, error)
 	// JWKS нужен только при RSA, при HS можно вернуть пусто
 	ListPublicJWK(ctx context.Context) ([]PublicJWK, error)
+}
+
+type SessionRepo interface {
+	Create(ctx context.Context, s *models.UserSession) error
+	Touch(ctx context.Context, id uuid.UUID, at time.Time) error
+	Revoke(ctx context.Context, id uuid.UUID) (bool, error)
+	RevokeAllByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	ListActiveByUser(ctx context.Context, userID uuid.UUID, since time.Time) ([]models.UserSession, error)
 }

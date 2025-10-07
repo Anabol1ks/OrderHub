@@ -19,6 +19,7 @@ type RefreshRepo interface {
 	GetByHashOnly(ctx context.Context, hash string) (*models.RefreshToken, error)
 	IsActiveByHash(ctx context.Context, hash string, now time.Time) (bool, error)
 	RevokeByHashOnly(ctx context.Context, hash string) (bool, error)
+	HasActiveBySession(ctx context.Context, sessionID uuid.UUID, now time.Time) (bool, error)
 }
 
 type refreshRepo struct{ db *gorm.DB }
@@ -92,4 +93,12 @@ func (r *refreshRepo) RevokeByHashOnly(ctx context.Context, hash string) (bool, 
 		Where("token_hash=? AND revoked=false", hash).
 		Update("revoked", true)
 	return res.RowsAffected > 0, res.Error
+}
+
+func (r *refreshRepo) HasActiveBySession(ctx context.Context, sessionID uuid.UUID, now time.Time) (bool, error) {
+	var cnt int64
+	err := r.db.WithContext(ctx).Model(&models.RefreshToken{}).
+		Where("session_id = ? AND revoked = false AND expires_at > ?", sessionID, now).
+		Count(&cnt).Error
+	return cnt > 0, err
 }
