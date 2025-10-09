@@ -15,9 +15,6 @@ import (
 func Router(authClient *auth.Client, log *zap.Logger) *gin.Engine {
 	r := gin.Default()
 
-	authHandler := handlers.NewAuthHandler(authClient, log)
-	r.POST("/auth/register", authHandler.Register)
-
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -33,6 +30,12 @@ func Router(authClient *auth.Client, log *zap.Logger) *gin.Engine {
 			"status": "ok",
 		})
 	})
+
+	authHandler := handlers.NewAuthHandler(authClient, log)
+	auth := r.Group("/api/v1/auth")
+
+	auth.POST("/register", authHandler.Register)
+	auth.POST("/login", authHandler.Login)
 
 	return r
 }

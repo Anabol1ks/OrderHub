@@ -35,6 +35,48 @@ definitions:
       message:
         type: string
     type: object
+  dto.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.LoginResponse:
+    properties:
+      role:
+        type: string
+      tokens:
+        properties:
+          access_expires_in:
+            type: integer
+          access_token:
+            type: string
+          refresh_expires_in:
+            type: integer
+          refresh_token:
+            type: string
+        type: object
+      user_id:
+        type: string
+    type: object
+  dto.NotFoundErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
   dto.RegisterRequest:
     properties:
       email:
@@ -57,6 +99,19 @@ definitions:
       user_id:
         type: string
     type: object
+  dto.UnauthorizedErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
   dto.ValidationErrorResponse:
     properties:
       code:
@@ -76,7 +131,45 @@ info:
   title: OrderHub API
   version: "1.0"
 paths:
-  /auth/register:
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Авторизует пользователя и выдаёт JWKs токен
+      parameters:
+      - description: Данные авторизации
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "401":
+          description: Ошибка авторизации
+          schema:
+            $ref: '#/definitions/dto.UnauthorizedErrorResponse'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "500":
+          description: Внутренная ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      summary: Авторизация пользователя
+      tags:
+      - auth
+  /api/v1/auth/register:
     post:
       consumes:
       - application/json
