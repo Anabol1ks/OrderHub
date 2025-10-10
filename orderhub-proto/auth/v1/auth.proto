@@ -133,7 +133,6 @@ message RequestPasswordResetRequest {
 }
 
 message ConfirmPasswordResetRequest {
-  string email        = 1 [(validate.rules).string = {email: true}];
-  string code         = 2 [(validate.rules).string = {min_len: 4, max_len: 12}];
-  string new_password = 3 [(validate.rules).string = {min_len: 8, max_len: 72}];
+  string code         = 1 [(validate.rules).string = {min_len: 4, max_len: 12}];
+  string new_password = 2 [(validate.rules).string = {min_len: 8, max_len: 72}];
 }

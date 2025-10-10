@@ -922,9 +922,8 @@ func (x *RequestPasswordResetRequest) GetEmail() string {
 
 type ConfirmPasswordResetRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
-	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
-	NewPassword   string                 `protobuf:"bytes,3,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	NewPassword   string                 `protobuf:"bytes,2,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -957,13 +956,6 @@ func (x *ConfirmPasswordResetRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ConfirmPasswordResetRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmPasswordResetRequest) Descriptor() ([]byte, []int) {
 	return file_auth_v1_auth_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *ConfirmPasswordResetRequest) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
 }
 
 func (x *ConfirmPasswordResetRequest) GetCode() string {
@@ -1043,11 +1035,10 @@ const file_auth_v1_auth_proto_rawDesc = "" +
 	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\x12\x1d\n" +
 	"\x04code\x18\x02 \x01(\tB\t\xfaB\x06r\x04\x10\x06\x18\x06R\x04code\"<\n" +
 	"\x1bRequestPasswordResetRequest\x12\x1d\n" +
-	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\"\x89\x01\n" +
+	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\"j\n" +
 	"\x1bConfirmPasswordResetRequest\x12\x1d\n" +
-	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\x12\x1d\n" +
-	"\x04code\x18\x02 \x01(\tB\t\xfaB\x06r\x04\x10\x04\x18\fR\x04code\x12,\n" +
-	"\fnew_password\x18\x03 \x01(\tB\t\xfaB\x06r\x04\x10\b\x18HR\vnewPassword2\xeb\x05\n" +
+	"\x04code\x18\x01 \x01(\tB\t\xfaB\x06r\x04\x10\x04\x18\fR\x04code\x12,\n" +
+	"\fnew_password\x18\x02 \x01(\tB\t\xfaB\x06r\x04\x10\b\x18HR\vnewPassword2\xeb\x05\n" +
 	"\vAuthService\x12?\n" +
 	"\bRegister\x12\x18.auth.v1.RegisterRequest\x1a\x19.auth.v1.RegisterResponse\x126\n" +
 	"\x05Login\x12\x15.auth.v1.LoginRequest\x1a\x16.auth.v1.LoginResponse\x12<\n" +

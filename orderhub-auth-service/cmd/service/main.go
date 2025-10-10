@@ -55,6 +55,7 @@ func main() {
 		hasher, tokens, repos.Session, repos.PasswordReset,
 		time.Duration(cfg.JWT.AccessExp),
 		time.Duration(cfg.JWT.RefreshExp),
+		log,
 	)
 
 	lis, err := net.Listen("tcp", cfg.Port)

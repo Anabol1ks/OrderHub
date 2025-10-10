@@ -206,6 +206,11 @@ func (s *AuthServer) Refresh(ctx context.Context, req *authv1.RefreshRequest) (*
 func (s *AuthServer) Logout(ctx context.Context, req *authv1.LogoutRequest) (*emptypb.Empty, error) {
 	s.log.Info("Logging out", zap.String("request", fmt.Sprintf("%+v", req)))
 
+	if err := req.Validate(); err != nil {
+		s.log.Warn("Invalid refresh request", zap.Error(err))
+		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
+	}
+
 	// Особый случай: пользователь мог прислать JSON с двумя полями all=false и refresh_token.
 	// В proto это oneof, но разные клиенты могут сформировать неоднозначный payload.
 	// Логика: если есть refresh_token (не пустой) — выполняем single logout, игнорируя all=false.
@@ -309,6 +314,27 @@ func (s *AuthServer) RequestPasswordReset(ctx context.Context, req *authv1.Reque
 	}
 
 	s.log.Info("request password reset send")
+	return &emptypb.Empty{}, nil
+}
+
+func (s *AuthServer) ConfirmPasswordReset(ctx context.Context, req *authv1.ConfirmPasswordResetRequest) (*emptypb.Empty, error) {
+	s.log.Info("Confirm password reset", zap.String("code", req.Code))
+
+	if err := s.userService.ConfirmPasswordReset(ctx, req.Code, req.NewPassword); err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidOrExpiredCode):
+			s.log.Warn("failed", zap.String("op", "ConfirmPasswordReset"), zap.Error(err))
+			return nil, status.Errorf(codes.InvalidArgument, "invalid or expired code")
+		case errors.Is(err, service.ErrNotFound):
+			s.log.Warn("failed", zap.String("op", "ConfirmPasswordReset"), zap.Error(err))
+			return nil, status.Errorf(codes.NotFound, "user not found")
+		default:
+			s.log.Warn("failed", zap.String("op", "ConfirmPasswordReset"), zap.Error(err))
+			return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
+		}
+	}
+
+	s.log.Info("reset password confirmed")
 	return &emptypb.Empty{}, nil
 }
 

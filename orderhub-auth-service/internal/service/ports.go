@@ -76,7 +76,7 @@ type SessionRepo interface {
 
 type PasswordResetRepo interface {
 	Create(ctx context.Context, t *models.PasswordResetToken) error
-	GetValidByHash(ctx context.Context, userID, codeHash string, now time.Time) (*models.PasswordResetToken, error)
+	GetValidByHash(ctx context.Context, codeHash string, now time.Time) (*models.PasswordResetToken, error)
 	Consume(ctx context.Context, id string) (bool, error)
 	DeleteAllForUser(ctx context.Context, userID string) (int64, error)
 	FindLatestByUser(ctx context.Context, userID uuid.UUID) (*models.PasswordResetToken, error)

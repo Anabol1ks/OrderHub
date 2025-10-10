@@ -11,4 +11,5 @@ var (
 	ErrTokenNotFoundOrRevoked  = errors.New("refresh token not found or already revoked")
 	ErrPasswordResetInProgress = errors.New("password reset in progress")
 	ErrTooManyRequests         = errors.New("too many requests")
+	ErrInvalidOrExpiredCode    = errors.New("invalid or expired reset code")
 )

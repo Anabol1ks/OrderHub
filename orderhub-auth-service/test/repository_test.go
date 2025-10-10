@@ -166,7 +166,7 @@ func TestPasswordResetRepo(t *testing.T) {
 		t.Fatalf("failed to create password reset token: %v", err)
 	}
 
-	if getPr, err := repo.PasswordReset.GetValidByHash(ctx, u.ID.String(), pr.CodeHash, time.Now()); err != nil {
+	if getPr, err := repo.PasswordReset.GetValidByHash(ctx, pr.CodeHash, time.Now()); err != nil {
 		t.Fatalf("failed to get valid password reset token: %v", err)
 	} else {
 		// Проверяем ключевые поля — даты сравниваем с небольшим допуском

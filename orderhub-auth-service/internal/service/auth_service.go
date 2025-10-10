@@ -5,11 +5,11 @@ import (
 	"auth-service/internal/util"
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/nanorand/nanorand"
+	"go.uber.org/zap"
 )
 
 type AuthService struct {
@@ -24,6 +24,8 @@ type AuthService struct {
 	accessTTL  time.Duration
 	refreshTTL time.Duration
 	now        func() time.Time
+
+	log *zap.Logger
 }
 
 type ClientMeta struct {
@@ -41,6 +43,7 @@ func NewAuthService(
 	sessions SessionRepo,
 	passwordReset PasswordResetRepo,
 	accessTTL, refreshTTL time.Duration,
+	log *zap.Logger,
 ) *AuthService {
 	return &AuthService{
 		users:         users,
@@ -54,6 +57,7 @@ func NewAuthService(
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
 		now:        time.Now,
+		log:        log,
 	}
 }
 
@@ -105,7 +109,6 @@ func (s *AuthService) Login(ctx context.Context, email, password string, meta Cl
 	if err != nil {
 		return uuid.Nil, "", TokenPair{}, err
 	}
-
 	var clientID string
 	if meta.ClientID != nil {
 		clientID = *meta.ClientID
@@ -305,7 +308,7 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) er
 
 	codeHash := util.Sha256Base64URL(rng)
 	// TODO: ВРЕМЕННЫЙ ВЫВОД, УБРАТЬ ПОСЛЕ СЕРВИСА УВЕДОМЛЕНИЙ
-	log.Println("Код сброса пароля: ", rng)
+	s.log.Info("Код сброса пароля: ", zap.String("code", rng))
 
 	expiresAt := s.now().Add(1 * time.Hour)
 
@@ -322,6 +325,44 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) er
 	}
 
 	// TODO: ТУТ НАДО БУДЕТ ДОБАВИТЬ ОТПРАВКУ EMAIL С КОДОМ
+
+	return nil
+}
+
+func (s *AuthService) ConfirmPasswordReset(ctx context.Context, code, newPassword string) error {
+	codeHash := util.Sha256Base64URL(code)
+
+	passwordReset, err := s.passwordReset.GetValidByHash(ctx, codeHash, s.now())
+	if err != nil {
+		return ErrInvalidOrExpiredCode
+	}
+
+	user, err := s.users.GetByID(ctx, passwordReset.UserID)
+	if err != nil || user == nil {
+		return ErrNotFound
+	}
+
+	newPasswordHash, err := s.hasher.Hash(newPassword)
+	if err != nil {
+		return err
+	}
+
+	user.Password = newPasswordHash
+	if err := s.users.UpdatePassword(ctx, user); err != nil {
+		return err
+	}
+
+	if _, err := s.passwordReset.Consume(ctx, passwordReset.ID.String()); err != nil {
+		s.log.Info("Failed to consume password reset token: ", zap.Error(err))
+	}
+
+	if _, err := s.refresh.RevokeAll(ctx, user.ID); err != nil {
+		s.log.Info("Failed to revoke refresh tokens: ", zap.Error(err))
+	}
+
+	if _, err := s.sessions.RevokeAllByUser(ctx, user.ID); err != nil {
+		s.log.Info("Failed to revoke session tokens: ", zap.Error(err))
+	}
 
 	return nil
 }

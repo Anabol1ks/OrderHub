@@ -14,7 +14,7 @@ var ErrNotFound = errors.New("not found")
 
 type PasswordResetRepo interface {
 	Create(ctx context.Context, t *models.PasswordResetToken) error
-	GetValidByHash(ctx context.Context, userID, codeHash string, now time.Time) (*models.PasswordResetToken, error)
+	GetValidByHash(ctx context.Context, codeHash string, now time.Time) (*models.PasswordResetToken, error)
 	Consume(ctx context.Context, id string) (bool, error)
 	DeleteAllForUser(ctx context.Context, userID string) (int64, error)
 	FindLatestByUser(ctx context.Context, userID uuid.UUID) (*models.PasswordResetToken, error)
@@ -32,10 +32,10 @@ func (r *passwordResetRepo) Create(ctx context.Context, t *models.PasswordResetT
 	return r.db.WithContext(ctx).Create(t).Error
 }
 
-func (r *passwordResetRepo) GetValidByHash(ctx context.Context, userID, codeHash string, now time.Time) (*models.PasswordResetToken, error) {
+func (r *passwordResetRepo) GetValidByHash(ctx context.Context, codeHash string, now time.Time) (*models.PasswordResetToken, error) {
 	var pr models.PasswordResetToken
 	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND code_hash = ? AND consumed = false AND expires_at > ?", userID, codeHash, now).First(&pr).Error
+		Where("code_hash = ? AND consumed = false AND expires_at > ?", codeHash, now).First(&pr).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound
