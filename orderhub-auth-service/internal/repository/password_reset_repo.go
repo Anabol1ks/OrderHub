@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -16,6 +17,7 @@ type PasswordResetRepo interface {
 	GetValidByHash(ctx context.Context, userID, codeHash string, now time.Time) (*models.PasswordResetToken, error)
 	Consume(ctx context.Context, id string) (bool, error)
 	DeleteAllForUser(ctx context.Context, userID string) (int64, error)
+	FindLatestByUser(ctx context.Context, userID uuid.UUID) (*models.PasswordResetToken, error)
 }
 
 type passwordResetRepo struct {
@@ -56,4 +58,12 @@ func (r *passwordResetRepo) DeleteAllForUser(ctx context.Context, userID string)
 		Where("user_id = ?", userID).
 		Delete(&models.PasswordResetToken{})
 	return res.RowsAffected, res.Error
+}
+
+func (r *passwordResetRepo) FindLatestByUser(ctx context.Context, userID uuid.UUID) (*models.PasswordResetToken, error) {
+	var prt models.PasswordResetToken
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at desc").First(&prt).Error; err != nil {
+		return nil, err
+	}
+	return &prt, nil
 }

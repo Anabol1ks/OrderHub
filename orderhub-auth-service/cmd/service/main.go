@@ -52,7 +52,7 @@ func main() {
 
 	authSvc := service.NewAuthService(
 		repos.Users, repos.RefreshTokens, repos.JWKs,
-		hasher, tokens, repos.Session,
+		hasher, tokens, repos.Session, repos.PasswordReset,
 		time.Duration(cfg.JWT.AccessExp),
 		time.Duration(cfg.JWT.RefreshExp),
 	)

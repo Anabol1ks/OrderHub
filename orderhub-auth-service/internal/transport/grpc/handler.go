@@ -288,6 +288,30 @@ func (s *AuthServer) Introspect(ctx context.Context, req *authv1.IntrospectReque
 	return resp, nil
 }
 
+func (s *AuthServer) RequestPasswordReset(ctx context.Context, req *authv1.RequestPasswordResetRequest) (*emptypb.Empty, error) {
+	s.log.Info("Request password reset", zap.String("request", req.Email))
+
+	if err := s.userService.RequestPasswordReset(ctx, req.Email); err != nil {
+		switch {
+		case errors.Is(err, service.ErrNotFound):
+			s.log.Warn("failed", zap.String("op", "RequestPasswordReset"), zap.Error(err))
+			return nil, status.Errorf(codes.NotFound, "user not found")
+		case errors.Is(err, service.ErrPasswordResetInProgress):
+			s.log.Warn("failed", zap.String("op", "RequestPasswordReset"), zap.Error(err))
+			return nil, status.Errorf(codes.ResourceExhausted, "password reset in progress")
+		case errors.Is(err, service.ErrTooManyRequests):
+			s.log.Warn("failed", zap.String("op", "RequestPasswordReset"), zap.Error(err))
+			return nil, status.Errorf(codes.ResourceExhausted, "too many requests")
+		default:
+			s.log.Warn("failed", zap.String("op", "RequestPasswordReset"), zap.Error(err))
+			return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
+		}
+	}
+
+	s.log.Info("request password reset send")
+	return &emptypb.Empty{}, nil
+}
+
 // -------------------------------УТИЛИТЫ----------------------------------
 
 func clientIPFromContext(ctx context.Context) string {

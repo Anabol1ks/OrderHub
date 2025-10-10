@@ -5,18 +5,21 @@ import (
 	"auth-service/internal/util"
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nanorand/nanorand"
 )
 
 type AuthService struct {
-	users    UserRepo
-	refresh  RefreshRepo
-	jwks     JWKRepo // может быть nil при HS256
-	hasher   PasswordHasher
-	tokens   TokenProvider
-	sessions SessionRepo
+	users         UserRepo
+	refresh       RefreshRepo
+	jwks          JWKRepo // может быть nil при HS256
+	hasher        PasswordHasher
+	tokens        TokenProvider
+	sessions      SessionRepo
+	passwordReset PasswordResetRepo
 
 	accessTTL  time.Duration
 	refreshTTL time.Duration
@@ -36,15 +39,17 @@ func NewAuthService(
 	hasher PasswordHasher,
 	tokens TokenProvider,
 	sessions SessionRepo,
+	passwordReset PasswordResetRepo,
 	accessTTL, refreshTTL time.Duration,
 ) *AuthService {
 	return &AuthService{
-		users:    users,
-		refresh:  refresh,
-		jwks:     jwks,
-		hasher:   hasher,
-		tokens:   tokens,
-		sessions: sessions,
+		users:         users,
+		refresh:       refresh,
+		jwks:          jwks,
+		hasher:        hasher,
+		tokens:        tokens,
+		sessions:      sessions,
+		passwordReset: passwordReset,
 
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
@@ -273,6 +278,52 @@ func (s *AuthService) Introspect(ctx context.Context, access string) (bool, uuid
 		return false, uuid.Nil, "", time.Time{}, nil
 	}
 	return true, claims.UserID, claims.Role, claims.Exp, nil
+}
+
+func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) error {
+	u, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		return ErrNotFound
+	}
+
+	latest, err := s.passwordReset.FindLatestByUser(ctx, u.ID)
+	if err == nil && latest != nil {
+		if !latest.Consumed && latest.ExpiresAt.After(s.now()) {
+			return ErrPasswordResetInProgress
+		}
+
+		cooldownDuration := time.Minute
+		if s.now().Sub(latest.CreatedAt) < cooldownDuration {
+			return ErrTooManyRequests
+		}
+	}
+
+	rng, err := nanorand.Gen(6)
+	if err != nil {
+		return err
+	}
+
+	codeHash := util.Sha256Base64URL(rng)
+	// TODO: ВРЕМЕННЫЙ ВЫВОД, УБРАТЬ ПОСЛЕ СЕРВИСА УВЕДОМЛЕНИЙ
+	log.Println("Код сброса пароля: ", rng)
+
+	expiresAt := s.now().Add(1 * time.Hour)
+
+	passwordReset := &models.PasswordResetToken{
+		UserID:    u.ID,
+		CodeHash:  codeHash,
+		Email:     email,
+		ExpiresAt: expiresAt,
+		Consumed:  false,
+	}
+
+	if err := s.passwordReset.Create(ctx, passwordReset); err != nil {
+		return err
+	}
+
+	// TODO: ТУТ НАДО БУДЕТ ДОБАВИТЬ ОТПРАВКУ EMAIL С КОДОМ
+
+	return nil
 }
 
 type ctxKey string
