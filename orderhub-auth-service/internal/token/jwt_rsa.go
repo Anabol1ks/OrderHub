@@ -31,8 +31,16 @@ func (p *RSAProvider) EnsureKeyOnStart(ctx context.Context) error {
 	return p.ensureActiveKey(ctx)
 }
 
+type CacheClient interface {
+	SetJWK(ctx context.Context, kid string, jwkData []byte, ttl time.Duration) error
+	GetJWK(ctx context.Context, kid string) ([]byte, error)
+	BlacklistToken(ctx context.Context, jti string, ttl time.Duration) error
+	IsTokenBlacklisted(ctx context.Context, jti string) (bool, error)
+}
+
 type RSAProvider struct {
 	store    JWKStore
+	cache    CacheClient // добавляем Redis кэш
 	issuer   string
 	audience string
 
@@ -50,9 +58,15 @@ type RSAProvider struct {
 func NewRSAProvider(store JWKStore, issuer, audience string) *RSAProvider {
 	return &RSAProvider{
 		store: store, issuer: issuer, audience: audience,
+		cache:   nil, // будет установлен через SetCache
 		pubKeys: make(map[string]*rsa.PublicKey),
 		now:     time.Now,
 	}
+}
+
+// SetCache устанавливает Redis кэш (опционально)
+func (p *RSAProvider) SetCache(cache CacheClient) {
+	p.cache = cache
 }
 
 func (p *RSAProvider) ensureActiveKey(ctx context.Context) error {
@@ -175,10 +189,14 @@ func (p *RSAProvider) SignAccess(ctx context.Context, sub uuid.UUID, role string
 	now := p.now()
 	exp := now.Add(ttl)
 
+	// Генерируем уникальный JTI для blacklist
+	jti := uuid.New().String()
+
 	claims := customClaims{
 		Sub:  sub.String(),
 		Role: role,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        jti, // добавляем JTI
 			Issuer:    p.issuer,
 			Subject:   sub.String(),
 			Audience:  []string{p.audience},
@@ -217,7 +235,7 @@ func (p *RSAProvider) ParseAndValidateAccess(ctx context.Context, token string) 
 			return nil, errors.New("missing kid")
 		}
 
-		// попробуем из кэша
+		// 1. Попробуем из локального кэша
 		p.pubMu.RLock()
 		if k, ok := p.pubKeys[kid]; ok {
 			p.pubMu.RUnlock()
@@ -225,7 +243,21 @@ func (p *RSAProvider) ParseAndValidateAccess(ctx context.Context, token string) 
 		}
 		p.pubMu.RUnlock()
 
-		// загрузим из store
+		// 2. Попробуем из Redis кэша
+		if p.cache != nil {
+			if jwkData, err := p.cache.GetJWK(ctx, kid); err == nil {
+				// Десериализуем публичный ключ из PEM
+				if pub, err := parsePublicKeyFromPEM(jwkData); err == nil {
+					// Сохраняем в локальный кэш
+					p.pubMu.Lock()
+					p.pubKeys[kid] = pub
+					p.pubMu.Unlock()
+					return pub, nil
+				}
+			}
+		}
+
+		// 3. Загружаем из БД
 		rec, err := p.store.GetByKID(ctx, kid)
 		if err != nil || rec == nil {
 			return nil, errors.New("unknown kid")
@@ -235,9 +267,17 @@ func (p *RSAProvider) ParseAndValidateAccess(ctx context.Context, token string) 
 			return nil, err
 		}
 
+		// Сохраняем в локальный кэш
 		p.pubMu.Lock()
 		p.pubKeys[kid] = pub
 		p.pubMu.Unlock()
+
+		// Сохраняем в Redis кэш (если доступен)
+		if p.cache != nil {
+			if pemData, err := publicKeyToPEM(pub); err == nil {
+				_ = p.cache.SetJWK(ctx, kid, pemData, 24*time.Hour) // кэшируем на сутки
+			}
+		}
 
 		return pub, nil
 	}
@@ -250,6 +290,13 @@ func (p *RSAProvider) ParseAndValidateAccess(ctx context.Context, token string) 
 	cc, ok := parsed.Claims.(*customClaims)
 	if !ok || !parsed.Valid {
 		return nil, errors.New("invalid token")
+	}
+
+	// Проверяем blacklist токенов
+	if p.cache != nil && cc.ID != "" {
+		if blacklisted, err := p.cache.IsTokenBlacklisted(ctx, cc.ID); err == nil && blacklisted {
+			return nil, errors.New("token is blacklisted")
+		}
 	}
 
 	uid, err := uuid.Parse(cc.Sub)
@@ -278,4 +325,69 @@ func jwkToPublic(nB64, eB64 string) (*rsa.PublicKey, error) {
 		E: e,
 	}
 	return pub, nil
+}
+
+// parsePublicKeyFromPEM парсит публичный ключ RSA из PEM данных
+func parsePublicKeyFromPEM(pemData []byte) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode(pemData)
+	if block == nil {
+		return nil, errors.New("failed to decode PEM block")
+	}
+
+	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	rsaPubKey, ok := pubKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("not an RSA public key")
+	}
+
+	return rsaPubKey, nil
+}
+
+// publicKeyToPEM конвертирует публичный ключ RSA в PEM формат
+func publicKeyToPEM(pubKey *rsa.PublicKey) ([]byte, error) {
+	pubKeyBytes, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	pemBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubKeyBytes,
+	}
+
+	return pem.EncodeToMemory(pemBlock), nil
+}
+
+// BlacklistToken добавляет токен в blacklist до его истечения
+func (p *RSAProvider) BlacklistToken(ctx context.Context, token string) error {
+	if p.cache == nil {
+		return nil // нет кэша - нет blacklist
+	}
+
+	// Парсим токен чтобы получить JTI и время истечения
+	// Используем nil как keyfunc, чтобы получить claims даже если подпись неверная
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	parsed, _, err := parser.ParseUnverified(token, &customClaims{})
+	if err != nil {
+		return err
+	}
+
+	claims, ok := parsed.Claims.(*customClaims)
+	if !ok || claims.ID == "" {
+		return errors.New("token has no JTI")
+	}
+
+	// Вычисляем TTL до истечения токена
+	now := p.now()
+	exp := claims.ExpiresAt.Time
+	if exp.Before(now) {
+		return nil // токен уже истёк
+	}
+
+	ttl := exp.Sub(now)
+	return p.cache.BlacklistToken(ctx, claims.ID, ttl)
 }

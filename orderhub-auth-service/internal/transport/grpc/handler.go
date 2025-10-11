@@ -216,7 +216,18 @@ func (s *AuthServer) Logout(ctx context.Context, req *authv1.LogoutRequest) (*em
 	// Логика: если есть refresh_token (не пустой) — выполняем single logout, игнорируя all=false.
 	if rt := req.GetRefreshToken(); strings.TrimSpace(rt) != "" {
 		refresh := strings.TrimSpace(rt)
-		if err := s.userService.Logout(ctx, refresh); err != nil {
+
+		var accessToken string
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if authz := getFirst(md, "authorization"); authz != "" {
+				prefix := "bearer "
+				if len(authz) > len(prefix) && strings.EqualFold(authz[:len(prefix)], prefix) {
+					accessToken = strings.TrimSpace(authz[len(prefix):])
+				}
+			}
+		}
+
+		if err := s.userService.LogoutWithAccessToken(ctx, refresh, accessToken); err != nil {
 			switch {
 			case errors.Is(err, service.ErrTokenNotFoundOrRevoked):
 				s.log.Warn("failed", zap.String("op", "Logout"), zap.Error(err))
@@ -226,7 +237,7 @@ func (s *AuthServer) Logout(ctx context.Context, req *authv1.LogoutRequest) (*em
 				return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
 			}
 		}
-		s.log.Info("refresh token revoked")
+		s.log.Info("refresh token revoked and access token blacklisted")
 		return &emptypb.Empty{}, nil
 	}
 

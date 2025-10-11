@@ -90,3 +90,22 @@ type EmailVerificationRepo interface {
 	DeleteAllForUser(ctx context.Context, userID string) (int64, error)
 	FindLatestByUser(ctx context.Context, userID uuid.UUID) (*models.EmailVerification, error)
 }
+
+type CacheClient interface {
+	// Rate limiting
+	SetRateLimit(ctx context.Context, key string, ttl time.Duration) error
+	CheckRateLimit(ctx context.Context, key string) (bool, error)
+
+	// JWK кэширование
+	SetJWK(ctx context.Context, kid string, jwkData []byte, ttl time.Duration) error
+	GetJWK(ctx context.Context, kid string) ([]byte, error)
+
+	// Blacklist токенов
+	BlacklistToken(ctx context.Context, jti string, ttl time.Duration) error
+	IsTokenBlacklisted(ctx context.Context, jti string) (bool, error)
+
+	// Общие методы
+	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Get(ctx context.Context, key string) (string, error)
+	Del(ctx context.Context, keys ...string) error
+}

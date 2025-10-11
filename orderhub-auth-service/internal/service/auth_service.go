@@ -5,6 +5,7 @@ import (
 	"auth-service/internal/util"
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ type AuthService struct {
 	sessions          SessionRepo
 	passwordReset     PasswordResetRepo
 	emailVerification EmailVerificationRepo
+	cache             CacheClient
 
 	accessTTL  time.Duration
 	refreshTTL time.Duration
@@ -44,6 +46,7 @@ func NewAuthService(
 	sessions SessionRepo,
 	passwordReset PasswordResetRepo,
 	emailVerification EmailVerificationRepo,
+	cache CacheClient,
 	accessTTL, refreshTTL time.Duration,
 	log *zap.Logger,
 ) *AuthService {
@@ -56,6 +59,7 @@ func NewAuthService(
 		sessions:          sessions,
 		passwordReset:     passwordReset,
 		emailVerification: emailVerification,
+		cache:             cache,
 
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
@@ -246,6 +250,10 @@ func (s *AuthService) Refresh(ctx context.Context, refreshOpaqueHash string, met
 }
 
 func (s *AuthService) Logout(ctx context.Context, opaque string) error {
+	return s.LogoutWithAccessToken(ctx, opaque, "")
+}
+
+func (s *AuthService) LogoutWithAccessToken(ctx context.Context, opaque, accessToken string) error {
 	if opaque == "" {
 		return errors.New("empty refresh token")
 	}
@@ -257,6 +265,16 @@ func (s *AuthService) Logout(ctx context.Context, opaque string) error {
 			return ErrTokenNotFoundOrRevoked
 		}
 		return err
+	}
+
+	if accessToken != "" {
+		if blacklister, ok := s.tokens.(interface {
+			BlacklistToken(ctx context.Context, token string) error
+		}); ok {
+			if err := blacklister.BlacklistToken(ctx, accessToken); err != nil {
+				s.log.Warn("failed to blacklist access token", zap.Error(err))
+			}
+		}
 	}
 
 	// Ревокуем сам refresh
@@ -308,16 +326,29 @@ func (s *AuthService) Introspect(ctx context.Context, access string) (bool, uuid
 }
 
 func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) error {
+	if s.cache != nil {
+		rateLimitKey := fmt.Sprintf("pwd_reset:%s", email)
+		limited, err := s.cache.CheckRateLimit(ctx, rateLimitKey)
+		if err != nil {
+			s.log.Warn("failed to check rate limit", zap.Error(err))
+			// продолжаем без rate limiting при ошибке Redis
+		} else if limited {
+			return ErrTooManyRequests
+		}
+	}
+
 	u, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
 		return ErrNotFound
 	}
 
-	latest, err := s.passwordReset.FindLatestByUser(ctx, u.ID)
-	if err == nil && latest != nil {
-		cooldownDuration := time.Minute
-		if s.now().Sub(latest.CreatedAt) < cooldownDuration {
-			return ErrTooManyRequests
+	if s.cache == nil {
+		latest, err := s.passwordReset.FindLatestByUser(ctx, u.ID)
+		if err == nil && latest != nil {
+			cooldownDuration := time.Minute
+			if s.now().Sub(latest.CreatedAt) < cooldownDuration {
+				return ErrTooManyRequests
+			}
 		}
 	}
 
@@ -342,6 +373,13 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) er
 
 	if err := s.passwordReset.Create(ctx, passwordReset); err != nil {
 		return err
+	}
+
+	if s.cache != nil {
+		rateLimitKey := fmt.Sprintf("pwd_reset:%s", email)
+		if err := s.cache.SetRateLimit(ctx, rateLimitKey, time.Minute); err != nil {
+			s.log.Warn("failed to set rate limit", zap.Error(err))
+		}
 	}
 
 	// TODO: ТУТ НАДО БУДЕТ ДОБАВИТЬ ОТПРАВКУ EMAIL С КОДОМ
@@ -397,6 +435,16 @@ func (s *AuthService) RequestEmailVerification(ctx context.Context) error {
 		return errors.New("unauthenticated: user id not found in context")
 	}
 
+	if s.cache != nil {
+		rateLimitKey := fmt.Sprintf("email_ver:%s", userID.String())
+		limited, err := s.cache.CheckRateLimit(ctx, rateLimitKey)
+		if err != nil {
+			s.log.Warn("failed to check rate limit", zap.Error(err))
+		} else if limited {
+			return ErrTooManyRequests
+		}
+	}
+
 	// Получаем пользователя по ID из контекста
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil || u == nil {
@@ -408,14 +456,15 @@ func (s *AuthService) RequestEmailVerification(ctx context.Context) error {
 		return ErrEmailAlreadyVerified
 	}
 
-	latest, err := s.emailVerification.FindLatestByUser(ctx, u.ID)
-	if err == nil && latest != nil {
-		cooldownDuration := time.Minute
-		if s.now().Sub(latest.CreatedAt) < cooldownDuration {
-			return ErrTooManyRequests
+	if s.cache == nil {
+		latest, err := s.emailVerification.FindLatestByUser(ctx, u.ID)
+		if err == nil && latest != nil {
+			cooldownDuration := time.Minute
+			if s.now().Sub(latest.CreatedAt) < cooldownDuration {
+				return ErrTooManyRequests
+			}
 		}
 	}
-
 	rng, err := nanorand.Gen(10)
 	if err != nil {
 		return err
@@ -437,6 +486,13 @@ func (s *AuthService) RequestEmailVerification(ctx context.Context) error {
 
 	if err := s.emailVerification.Create(ctx, emailVerification); err != nil {
 		return err
+	}
+
+	if s.cache != nil {
+		rateLimitKey := fmt.Sprintf("email_ver:%s", userID.String())
+		if err := s.cache.SetRateLimit(ctx, rateLimitKey, time.Minute); err != nil {
+			s.log.Warn("failed to set rate limit", zap.Error(err))
+		}
 	}
 
 	// TODO: отправка через Kafka
