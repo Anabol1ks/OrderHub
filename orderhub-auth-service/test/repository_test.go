@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -54,7 +55,50 @@ func TestUserRepo(t *testing.T) {
 
 	err = repo.UpdatePassword(ctx, &user)
 	if err != nil {
-		t.Fatalf("failed to update user password: %v", err)
+		t.Fatalf("failed to update password: %v", err)
+	}
+
+	// Проверяем что пароль обновился
+	updatedUser, err := repo.GetByID(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("failed to get updated user: %v", err)
+	}
+	if updatedUser.Password != "newpassword" {
+		t.Fatalf("password not updated: got %s, want newpassword", updatedUser.Password)
+	}
+
+	// Тестируем ExistsByEmail
+	if exists, err := repo.ExistsByEmail(ctx, user.Email); err != nil {
+		t.Fatalf("failed to check email existence: %v", err)
+	} else if !exists {
+		t.Fatal("expected email to exist")
+	}
+
+	if exists, err := repo.ExistsByEmail(ctx, "nonexistent@example.com"); err != nil {
+		t.Fatalf("failed to check nonexistent email: %v", err)
+	} else if exists {
+		t.Fatal("expected email to not exist")
+	}
+
+	// Тестируем UpdateIsEmailVerified
+	user.IsEmailVerified = true
+	if err := repo.UpdateIsEmailVerified(ctx, &user); err != nil {
+		t.Fatalf("failed to update email verification status: %v", err)
+	}
+
+	// Проверяем что статус обновился
+	verifiedUser, err := repo.GetByID(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("failed to get verified user: %v", err)
+	}
+	if !verifiedUser.IsEmailVerified {
+		t.Fatal("expected user to be email verified")
+	}
+
+	// Тестируем case-insensitive поиск по email
+	_, err = repo.GetByEmail(ctx, strings.ToUpper(user.Email))
+	if err != nil {
+		t.Fatalf("failed to get user by email (case insensitive): %v", err)
 	}
 }
 
@@ -98,9 +142,26 @@ func TestRefreshRepo(t *testing.T) {
 		t.Fatal("expected token to be active")
 	}
 
-	// Проверяем Touch
-	if err := repo.Touch(ctx, u_id, "hash_123", time.Now()); err != nil {
+	// Проверяем Touch - убеждаемся что обновляется last_used_at
+	beforeTouch := time.Now()
+	time.Sleep(100 * time.Millisecond) // Небольшая задержка
+	touchTime := time.Now()
+
+	if err := repo.Touch(ctx, u_id, "hash_123", touchTime); err != nil {
 		t.Fatalf("failed to touch refresh token: %v", err)
+	}
+
+	// Проверяем что last_used_at обновился
+	if token, err := repo.GetByHashOnly(ctx, "hash_123"); err != nil {
+		t.Fatalf("failed to get refresh token after touch: %v", err)
+	} else {
+		if token.LastUsedAt == nil {
+			t.Fatal("expected last_used_at to be set after touch")
+		}
+		if token.LastUsedAt.Before(beforeTouch) {
+			t.Fatalf("last_used_at not updated properly: got %v, should be after %v",
+				token.LastUsedAt, beforeTouch)
+		}
 	}
 
 	// Проверяем GetByHashOnly
@@ -125,9 +186,11 @@ func TestRefreshRepo(t *testing.T) {
 	}
 
 	// Создаём ещё несколько токенов для тестирования RevokeAll
+	sessionID := uuid.New()
 	r1 := models.RefreshToken{
 		ID:        uuid.New(),
 		UserID:    u_id,
+		SessionID: &sessionID,
 		TokenHash: "hash_456",
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
@@ -138,6 +201,7 @@ func TestRefreshRepo(t *testing.T) {
 	r2 := models.RefreshToken{
 		ID:        uuid.New(),
 		UserID:    u_id,
+		SessionID: &sessionID,
 		TokenHash: "hash_789",
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
@@ -145,11 +209,25 @@ func TestRefreshRepo(t *testing.T) {
 		t.Fatalf("failed to create refresh token: %v", err)
 	}
 
+	// Проверяем HasActiveBySession
+	if hasActive, err := repo.HasActiveBySession(ctx, *r1.SessionID, time.Now()); err != nil {
+		t.Fatalf("failed to check HasActiveBySession: %v", err)
+	} else if !hasActive {
+		t.Fatal("expected to have active refresh tokens for session")
+	}
+
 	// Проверяем RevokeAll
 	if count, err := repo.RevokeAll(ctx, u_id); err != nil {
 		t.Fatalf("failed to revoke all refresh tokens: %v", err)
 	} else if count != 2 {
 		t.Fatalf("expected to revoke 2 tokens, got %d", count)
+	}
+
+	// Проверяем, что сессия больше не имеет активных токенов
+	if hasActive, err := repo.HasActiveBySession(ctx, *r1.SessionID, time.Now()); err != nil {
+		t.Fatalf("failed to check HasActiveBySession after revoke: %v", err)
+	} else if hasActive {
+		t.Fatal("expected no active refresh tokens for session after revoke all")
 	}
 
 	// Проверяем, что токены больше не активны
@@ -246,6 +324,38 @@ func TestPasswordResetRepo(t *testing.T) {
 			t.Fatalf("expected to delete 2 password reset tokens, got %d", c)
 		}
 	}
+
+	// Тест FindLatestByUser
+	pr3 := models.PasswordResetToken{
+		UserID:    u.ID,
+		CodeHash:  "reset_token_hash3",
+		ExpiresAt: time.Now().Add(6 * time.Hour),
+		Email:     u.Email,
+		CreatedAt: time.Now(),
+	}
+	if err := repo.PasswordReset.Create(ctx, &pr3); err != nil {
+		t.Fatalf("failed to create password reset token: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond) // Небольшая задержка
+
+	pr4 := models.PasswordResetToken{
+		UserID:    u.ID,
+		CodeHash:  "reset_token_hash4",
+		ExpiresAt: time.Now().Add(6 * time.Hour),
+		Email:     u.Email,
+		CreatedAt: time.Now(),
+	}
+	if err := repo.PasswordReset.Create(ctx, &pr4); err != nil {
+		t.Fatalf("failed to create password reset token: %v", err)
+	}
+
+	// FindLatestByUser должен вернуть последний созданный
+	if latest, err := repo.PasswordReset.FindLatestByUser(ctx, u.ID); err != nil {
+		t.Fatalf("failed to find latest password reset token: %v", err)
+	} else if latest.CodeHash != "reset_token_hash4" {
+		t.Fatalf("expected latest code hash to be reset_token_hash4, got %s", latest.CodeHash)
+	}
 }
 
 func TestJWKRepo(t *testing.T) {
@@ -297,7 +407,25 @@ func TestJWKRepo(t *testing.T) {
 		t.Fatalf("ListPublic: %v", err)
 	}
 	if len(pubs) != 2 {
-		t.Fatalf("expected 2 public keys got %d", len(pubs))
+		t.Fatalf("expected 2 public keys, got %d", len(pubs))
+	}
+
+	// Проверяем что активный ключ теперь k2
+	if active, err := repo.GetActive(ctx); err != nil {
+		t.Fatalf("get active after switch: %v", err)
+	} else if active.KID != "k2" {
+		t.Fatalf("expected active key to be k2, got %s", active.KID)
+	}
+
+	// Тестируем создание ключа с дублирующимся KID (должно быть ошибка)
+	k3 := models.JwkKey{KID: "k2", N: "n3", E: "e3", PrivPEM: []byte("priv3"), Active: false}
+	if err := repo.Create(ctx, &k3); err == nil {
+		t.Fatal("expected error when creating key with duplicate KID")
+	}
+
+	// Тестируем SetActive с несуществующим KID
+	if err := repo.SetActive(ctx, "nonexistent"); err == nil {
+		t.Fatal("expected error when setting nonexistent key as active")
 	}
 }
 
@@ -421,5 +549,37 @@ func TestEmailVerificationRepo(t *testing.T) {
 		t.Fatalf("delete all: %v", err)
 	} else if c == 0 {
 		t.Fatalf("expected delete count >0")
+	}
+
+	// Тест FindLatestByUser
+	ev3 := models.EmailVerification{
+		UserID:    u.ID,
+		Email:     u.Email,
+		CodeHash:  "verify_hash3",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		CreatedAt: time.Now(),
+	}
+	if err := erepo.Create(ctx, &ev3); err != nil {
+		t.Fatalf("failed to create email verification: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond) // Небольшая задержка
+
+	ev4 := models.EmailVerification{
+		UserID:    u.ID,
+		Email:     u.Email,
+		CodeHash:  "verify_hash4",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		CreatedAt: time.Now(),
+	}
+	if err := erepo.Create(ctx, &ev4); err != nil {
+		t.Fatalf("failed to create email verification: %v", err)
+	}
+
+	// FindLatestByUser должен вернуть последний созданный
+	if latest, err := erepo.FindLatestByUser(ctx, u.ID); err != nil {
+		t.Fatalf("failed to find latest email verification: %v", err)
+	} else if latest.CodeHash != "verify_hash4" {
+		t.Fatalf("expected latest code hash to be verify_hash4, got %s", latest.CodeHash)
 	}
 }
