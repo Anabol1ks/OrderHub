@@ -21,11 +21,8 @@ type UserRepo interface {
 
 type RefreshRepo interface {
 	Create(ctx context.Context, t *models.RefreshToken) error
-	RevokeByHash(ctx context.Context, userID uuid.UUID, hash string) (bool, error)
 	RevokeAll(ctx context.Context, userID uuid.UUID) (int64, error)
 	Touch(ctx context.Context, userID uuid.UUID, hash string, at time.Time) error
-	IsActive(ctx context.Context, userID uuid.UUID, hash string, now time.Time) (bool, error)
-	GetByHash(ctx context.Context, userID uuid.UUID, hash string) (*models.RefreshToken, error)
 	GetByHashOnly(ctx context.Context, hash string) (*models.RefreshToken, error)
 	IsActiveByHash(ctx context.Context, hash string, now time.Time) (bool, error)
 	RevokeByHashOnly(ctx context.Context, hash string) (bool, error)

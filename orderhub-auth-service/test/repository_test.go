@@ -84,53 +84,85 @@ func TestRefreshRepo(t *testing.T) {
 	r := models.RefreshToken{
 		UserID:    u_id,
 		TokenHash: "hash_123",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 
 	if err := repo.Create(ctx, &r); err != nil {
 		t.Fatalf("failed to create refresh token: %v", err)
 	}
 
-	if _, err := repo.IsActive(ctx, u_id, "hash_123", time.Now()); err != nil {
+	// Проверяем IsActiveByHash
+	if active, err := repo.IsActiveByHash(ctx, "hash_123", time.Now()); err != nil {
 		t.Fatalf("failed to check if refresh token is active: %v", err)
+	} else if !active {
+		t.Fatal("expected token to be active")
 	}
 
+	// Проверяем Touch
 	if err := repo.Touch(ctx, u_id, "hash_123", time.Now()); err != nil {
 		t.Fatalf("failed to touch refresh token: %v", err)
 	}
 
-	if _, err := repo.RevokeByHash(ctx, u_id, "hash_123"); err != nil {
+	// Проверяем GetByHashOnly
+	if token, err := repo.GetByHashOnly(ctx, "hash_123"); err != nil {
+		t.Fatalf("failed to get refresh token: %v", err)
+	} else if token.TokenHash != "hash_123" {
+		t.Fatalf("token hash mismatch: got %s, want %s", token.TokenHash, "hash_123")
+	}
+
+	// Проверяем RevokeByHashOnly
+	if revoked, err := repo.RevokeByHashOnly(ctx, "hash_123"); err != nil {
 		t.Fatalf("failed to revoke refresh token: %v", err)
+	} else if !revoked {
+		t.Fatal("expected token to be revoked")
 	}
 
-	// Проверяем, что токен больше не существует
-	if _, err := repo.GetByHash(ctx, u_id, "hash_123"); err == nil {
-		t.Fatal("expected not found error, got nil")
+	// Проверяем, что токен больше не активен
+	if active, err := repo.IsActiveByHash(ctx, "hash_123", time.Now()); err != nil {
+		t.Fatalf("failed to check if refresh token is active: %v", err)
+	} else if active {
+		t.Fatal("expected token to be inactive after revoke")
 	}
 
-	// ещё раз создаём несколько токенов
-	r.TokenHash = "hash_456"
-	r.ID = uuid.New()
-	if err := repo.Create(ctx, &r); err != nil {
+	// Создаём ещё несколько токенов для тестирования RevokeAll
+	r1 := models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    u_id,
+		TokenHash: "hash_456",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+	if err := repo.Create(ctx, &r1); err != nil {
 		t.Fatalf("failed to create refresh token: %v", err)
 	}
 
-	r.TokenHash = "hash_789"
-	r.ID = uuid.New()
-	if err := repo.Create(ctx, &r); err != nil {
+	r2 := models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    u_id,
+		TokenHash: "hash_789",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+	if err := repo.Create(ctx, &r2); err != nil {
 		t.Fatalf("failed to create refresh token: %v", err)
 	}
 
-	if _, err := repo.RevokeAll(ctx, u_id); err != nil {
+	// Проверяем RevokeAll
+	if count, err := repo.RevokeAll(ctx, u_id); err != nil {
 		t.Fatalf("failed to revoke all refresh tokens: %v", err)
+	} else if count != 2 {
+		t.Fatalf("expected to revoke 2 tokens, got %d", count)
 	}
 
-	// Проверяем, что токены больше не существуют
-	if _, err := repo.GetByHash(ctx, u_id, "hash_456"); err == nil {
-		t.Fatal("expected not found error, got nil")
+	// Проверяем, что токены больше не активны
+	if active, err := repo.IsActiveByHash(ctx, "hash_456", time.Now()); err != nil {
+		t.Fatalf("failed to check if refresh token is active: %v", err)
+	} else if active {
+		t.Fatal("expected token to be inactive after revoke all")
 	}
 
-	if _, err := repo.GetByHash(ctx, u_id, "hash_789"); err == nil {
-		t.Fatal("expected not found error, got nil")
+	if active, err := repo.IsActiveByHash(ctx, "hash_789", time.Now()); err != nil {
+		t.Fatalf("failed to check if refresh token is active: %v", err)
+	} else if active {
+		t.Fatal("expected token to be inactive after revoke all")
 	}
 }
 

@@ -208,6 +208,10 @@ func (s *AuthService) Refresh(ctx context.Context, refreshOpaqueHash string, met
 		return TokenPair{}, err
 	}
 
+	if err := s.refresh.Touch(ctx, rt.UserID, hash, now); err != nil {
+		s.log.Warn("failed to update token last_used_at", zap.Error(err))
+	}
+
 	if _, err := s.refresh.RevokeByHashOnly(ctx, hash); err != nil {
 		return TokenPair{}, err
 	}
@@ -265,6 +269,10 @@ func (s *AuthService) LogoutWithAccessToken(ctx context.Context, opaque, accessT
 			return ErrTokenNotFoundOrRevoked
 		}
 		return err
+	}
+
+	if err := s.refresh.Touch(ctx, rt.UserID, hash, s.now()); err != nil {
+		s.log.Warn("failed to update token last_used_at before logout", zap.Error(err))
 	}
 
 	if accessToken != "" {
