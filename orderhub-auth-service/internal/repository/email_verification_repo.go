@@ -6,14 +6,16 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type EmailVerificationRepo interface {
 	Create(ctx context.Context, v *models.EmailVerification) error
-	GetValidByHash(ctx context.Context, userID string, codeHash string, now time.Time) (*models.EmailVerification, error)
+	GetValidByHash(ctx context.Context, codeHash string, now time.Time) (*models.EmailVerification, error)
 	Consume(ctx context.Context, id string) (bool, error)
 	DeleteAllForUser(ctx context.Context, userID string) (int64, error)
+	FindLatestByUser(ctx context.Context, userID uuid.UUID) (*models.EmailVerification, error)
 }
 
 type emailVerificationRepo struct{ db *gorm.DB }
@@ -26,10 +28,10 @@ func (r *emailVerificationRepo) Create(ctx context.Context, v *models.EmailVerif
 	return r.db.WithContext(ctx).Create(v).Error
 }
 
-func (r *emailVerificationRepo) GetValidByHash(ctx context.Context, userID string, codeHash string, now time.Time) (*models.EmailVerification, error) {
+func (r *emailVerificationRepo) GetValidByHash(ctx context.Context, codeHash string, now time.Time) (*models.EmailVerification, error) {
 	var ev models.EmailVerification
 	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND code_hash = ? AND consumed = false AND expires_at > ?", userID, codeHash, now).
+		Where("code_hash = ? AND consumed = false AND expires_at > ?", codeHash, now).
 		First(&ev).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -52,4 +54,12 @@ func (r *emailVerificationRepo) DeleteAllForUser(ctx context.Context, userID str
 	res := r.db.WithContext(ctx).Where("user_id = ?", userID).
 		Delete(&models.EmailVerification{})
 	return res.RowsAffected, res.Error
+}
+
+func (r *emailVerificationRepo) FindLatestByUser(ctx context.Context, userID uuid.UUID) (*models.EmailVerification, error) {
+	var ev models.EmailVerification
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at desc").First(&ev).Error; err != nil {
+		return nil, err
+	}
+	return &ev, nil
 }

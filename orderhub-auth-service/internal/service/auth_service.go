@@ -13,13 +13,14 @@ import (
 )
 
 type AuthService struct {
-	users         UserRepo
-	refresh       RefreshRepo
-	jwks          JWKRepo // может быть nil при HS256
-	hasher        PasswordHasher
-	tokens        TokenProvider
-	sessions      SessionRepo
-	passwordReset PasswordResetRepo
+	users             UserRepo
+	refresh           RefreshRepo
+	jwks              JWKRepo // может быть nil при HS256
+	hasher            PasswordHasher
+	tokens            TokenProvider
+	sessions          SessionRepo
+	passwordReset     PasswordResetRepo
+	emailVerification EmailVerificationRepo
 
 	accessTTL  time.Duration
 	refreshTTL time.Duration
@@ -42,17 +43,19 @@ func NewAuthService(
 	tokens TokenProvider,
 	sessions SessionRepo,
 	passwordReset PasswordResetRepo,
+	emailVerification EmailVerificationRepo,
 	accessTTL, refreshTTL time.Duration,
 	log *zap.Logger,
 ) *AuthService {
 	return &AuthService{
-		users:         users,
-		refresh:       refresh,
-		jwks:          jwks,
-		hasher:        hasher,
-		tokens:        tokens,
-		sessions:      sessions,
-		passwordReset: passwordReset,
+		users:             users,
+		refresh:           refresh,
+		jwks:              jwks,
+		hasher:            hasher,
+		tokens:            tokens,
+		sessions:          sessions,
+		passwordReset:     passwordReset,
+		emailVerification: emailVerification,
 
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
@@ -86,6 +89,27 @@ func (s *AuthService) Register(ctx context.Context, email, password, role string
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, err
 	}
+
+	rng, err := nanorand.Gen(10)
+	if err != nil {
+		return nil, err
+	}
+
+	codeHash := util.Sha256Base64URL(rng)
+
+	emailVer := models.EmailVerification{
+		UserID:    u.ID,
+		Email:     u.Email,
+		CodeHash:  codeHash,
+		ExpiresAt: s.now().Add(24 * time.Hour),
+	}
+
+	if err := s.emailVerification.Create(ctx, &emailVer); err != nil {
+		return nil, err
+	}
+
+	// TODO: ОТПРАВКА УВЕДОМЛЕНИЯ О ПОДТВЕРЖДЕНИИ EMAIL
+	s.log.Info("Код подтверждения почты", zap.String("code", rng))
 
 	return u, nil
 }
@@ -291,10 +315,6 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) er
 
 	latest, err := s.passwordReset.FindLatestByUser(ctx, u.ID)
 	if err == nil && latest != nil {
-		if !latest.Consumed && latest.ExpiresAt.After(s.now()) {
-			return ErrPasswordResetInProgress
-		}
-
 		cooldownDuration := time.Minute
 		if s.now().Sub(latest.CreatedAt) < cooldownDuration {
 			return ErrTooManyRequests
@@ -362,6 +382,138 @@ func (s *AuthService) ConfirmPasswordReset(ctx context.Context, code, newPasswor
 
 	if _, err := s.sessions.RevokeAllByUser(ctx, user.ID); err != nil {
 		s.log.Info("Failed to revoke session tokens: ", zap.Error(err))
+	}
+
+	if _, err := s.passwordReset.DeleteAllForUser(ctx, user.ID.String()); err != nil {
+		s.log.Info("Failed to delete password reset tokens: ", zap.Error(err))
+	}
+
+	return nil
+}
+
+func (s *AuthService) RequestEmailVerification(ctx context.Context) error {
+	userID, ok := UserIDFromContext(ctx)
+	if !ok || userID == uuid.Nil {
+		return errors.New("unauthenticated: user id not found in context")
+	}
+
+	// Получаем пользователя по ID из контекста
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil || u == nil {
+		return ErrNotFound
+	}
+
+	// Если email уже подтверждён
+	if u.IsEmailVerified {
+		return ErrEmailAlreadyVerified
+	}
+
+	latest, err := s.emailVerification.FindLatestByUser(ctx, u.ID)
+	if err == nil && latest != nil {
+		cooldownDuration := time.Minute
+		if s.now().Sub(latest.CreatedAt) < cooldownDuration {
+			return ErrTooManyRequests
+		}
+	}
+
+	rng, err := nanorand.Gen(10)
+	if err != nil {
+		return err
+	}
+
+	codeHash := util.Sha256Base64URL(rng)
+	s.log.Info("Код подтверждения почты", zap.String("code", rng))
+
+	expiresAt := s.now().Add(24 * time.Hour)
+
+	emailVerification := &models.EmailVerification{
+		UserID:    u.ID,
+		CodeHash:  codeHash,
+		Email:     u.Email, // берём email пользователя
+		ExpiresAt: expiresAt,
+		Consumed:  false,
+		CreatedAt: s.now(),
+	}
+
+	if err := s.emailVerification.Create(ctx, emailVerification); err != nil {
+		return err
+	}
+
+	// TODO: отправка через Kafka
+
+	return nil
+}
+
+func (s *AuthService) RequestEmailVerificationByEmail(ctx context.Context, email string) error {
+	u, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		return ErrNotFound
+	}
+
+	if u.IsEmailVerified {
+		return ErrEmailAlreadyVerified
+	}
+
+	latest, err := s.emailVerification.FindLatestByUser(ctx, u.ID)
+	if err == nil && latest != nil {
+		if !latest.Consumed && latest.ExpiresAt.After(s.now()) {
+			return ErrEmailVerificationInProgress
+		}
+
+		cooldownDuration := time.Minute
+		if s.now().Sub(latest.CreatedAt) < cooldownDuration {
+			return ErrTooManyRequests
+		}
+	}
+
+	rng, err := nanorand.Gen(10)
+	if err != nil {
+		return err
+	}
+
+	codeHash := util.Sha256Base64URL(rng)
+	s.log.Info("Код подтверждения почты", zap.String("code", rng))
+
+	expiresAt := s.now().Add(24 * time.Hour)
+
+	emailVerification := &models.EmailVerification{
+		UserID:    u.ID,
+		CodeHash:  codeHash,
+		Email:     email,
+		ExpiresAt: expiresAt,
+		Consumed:  false,
+		CreatedAt: s.now(),
+	}
+
+	if err := s.emailVerification.Create(ctx, emailVerification); err != nil {
+		return err
+	}
+
+	// TODO: ТУТ НАДО БУДЕТ ДОБАВИТЬ ОТПРАВКУ EMAIL С КОДОМ
+
+	return nil
+}
+
+func (s *AuthService) ConfirmEmailVerificationRequest(ctx context.Context, code string) error {
+	codeHash := util.Sha256Base64URL(code)
+
+	emailVer, err := s.emailVerification.GetValidByHash(ctx, codeHash, s.now())
+	if err != nil {
+		return ErrInvalidOrExpiredCode
+	}
+
+	user, err := s.users.GetByID(ctx, emailVer.UserID)
+	if err != nil || user == nil {
+		return ErrNotFound
+	}
+
+	user.IsEmailVerified = true
+	if err := s.users.UpdateIsEmailVerified(ctx, user); err != nil {
+		return err
+	}
+
+	if _, err := s.emailVerification.Consume(ctx, emailVer.ID.String()); err != nil {
+		s.log.Info("Failed to consume password reset token", zap.Error(err))
 	}
 
 	return nil

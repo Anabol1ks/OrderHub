@@ -301,9 +301,6 @@ func (s *AuthServer) RequestPasswordReset(ctx context.Context, req *authv1.Reque
 		case errors.Is(err, service.ErrNotFound):
 			s.log.Warn("failed", zap.String("op", "RequestPasswordReset"), zap.Error(err))
 			return nil, status.Errorf(codes.NotFound, "user not found")
-		case errors.Is(err, service.ErrPasswordResetInProgress):
-			s.log.Warn("failed", zap.String("op", "RequestPasswordReset"), zap.Error(err))
-			return nil, status.Errorf(codes.ResourceExhausted, "password reset in progress")
 		case errors.Is(err, service.ErrTooManyRequests):
 			s.log.Warn("failed", zap.String("op", "RequestPasswordReset"), zap.Error(err))
 			return nil, status.Errorf(codes.ResourceExhausted, "too many requests")
@@ -319,6 +316,10 @@ func (s *AuthServer) RequestPasswordReset(ctx context.Context, req *authv1.Reque
 
 func (s *AuthServer) ConfirmPasswordReset(ctx context.Context, req *authv1.ConfirmPasswordResetRequest) (*emptypb.Empty, error) {
 	s.log.Info("Confirm password reset", zap.String("code", req.Code))
+	if err := req.Validate(); err != nil {
+		s.log.Warn("Invalid confirm password request", zap.Error(err))
+		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
+	}
 
 	if err := s.userService.ConfirmPasswordReset(ctx, req.Code, req.NewPassword); err != nil {
 		switch {
@@ -335,6 +336,77 @@ func (s *AuthServer) ConfirmPasswordReset(ctx context.Context, req *authv1.Confi
 	}
 
 	s.log.Info("reset password confirmed")
+	return &emptypb.Empty{}, nil
+}
+
+func (s *AuthServer) RequestEmailVerification(ctx context.Context, req *authv1.RequestEmailVerificationRequest) (*emptypb.Empty, error) {
+	s.log.Info("Request email verification", zap.String("email", req.Email))
+	if req.Email == "" {
+		if err := s.userService.RequestEmailVerification(ctx); err != nil {
+			switch {
+			case errors.Is(err, service.ErrNotFound):
+				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
+				return nil, status.Errorf(codes.NotFound, "user not found")
+			case errors.Is(err, service.ErrEmailAlreadyVerified):
+				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
+				return nil, status.Errorf(codes.FailedPrecondition, "email already verified")
+			case errors.Is(err, service.ErrEmailVerificationInProgress):
+				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
+				return nil, status.Errorf(codes.ResourceExhausted, "email verification in progress")
+			case errors.Is(err, service.ErrTooManyRequests):
+				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
+				return nil, status.Errorf(codes.ResourceExhausted, "too many requests")
+			default:
+				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
+				return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
+			}
+		}
+	} else {
+		// Для неавторизованного пользователя (с указанием email)
+		if err := s.userService.RequestEmailVerificationByEmail(ctx, req.Email); err != nil {
+			switch {
+			case errors.Is(err, service.ErrNotFound):
+				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
+				return nil, status.Errorf(codes.NotFound, "user not found")
+			case errors.Is(err, service.ErrEmailAlreadyVerified):
+				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
+				return nil, status.Errorf(codes.FailedPrecondition, "email already verified")
+			case errors.Is(err, service.ErrTooManyRequests):
+				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
+				return nil, status.Errorf(codes.ResourceExhausted, "too many requests")
+			default:
+				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
+				return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
+			}
+		}
+	}
+
+	s.log.Info("request email verification sent")
+	return &emptypb.Empty{}, nil
+}
+
+func (s *AuthServer) ConfirmEmailVerification(ctx context.Context, req *authv1.ConfirmEmailVerificationRequest) (*emptypb.Empty, error) {
+	s.log.Info("Confirm email verification reset", zap.String("code", req.Code))
+	if err := req.Validate(); err != nil {
+		s.log.Warn("Invalid confirm email verification request", zap.Error(err))
+		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
+	}
+
+	if err := s.userService.ConfirmEmailVerificationRequest(ctx, req.Code); err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidOrExpiredCode):
+			s.log.Warn("failed", zap.String("op", "ConfirmEmailVerification"), zap.Error(err))
+			return nil, status.Errorf(codes.InvalidArgument, "invalid or expired code")
+		case errors.Is(err, service.ErrNotFound):
+			s.log.Warn("failed", zap.String("op", "ConfirmEmailVerification"), zap.Error(err))
+			return nil, status.Errorf(codes.NotFound, "user not found")
+		default:
+			s.log.Warn("failed", zap.String("op", "ConfirmEmailVerification"), zap.Error(err))
+			return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
+		}
+	}
+
+	s.log.Info("email verification confirmed")
 	return &emptypb.Empty{}, nil
 }
 

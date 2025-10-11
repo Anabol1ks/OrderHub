@@ -16,6 +16,7 @@ type UserRepo interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	UpdatePassword(ctx context.Context, user *models.User) error
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
+	UpdateIsEmailVerified(ctx context.Context, user *models.User) error
 }
 
 type RefreshRepo interface {
@@ -80,4 +81,12 @@ type PasswordResetRepo interface {
 	Consume(ctx context.Context, id string) (bool, error)
 	DeleteAllForUser(ctx context.Context, userID string) (int64, error)
 	FindLatestByUser(ctx context.Context, userID uuid.UUID) (*models.PasswordResetToken, error)
+}
+
+type EmailVerificationRepo interface {
+	Create(ctx context.Context, v *models.EmailVerification) error
+	GetValidByHash(ctx context.Context, codeHash string, now time.Time) (*models.EmailVerification, error)
+	Consume(ctx context.Context, id string) (bool, error)
+	DeleteAllForUser(ctx context.Context, userID string) (int64, error)
+	FindLatestByUser(ctx context.Context, userID uuid.UUID) (*models.EmailVerification, error)
 }

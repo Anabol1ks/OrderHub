@@ -361,7 +361,7 @@ func TestEmailVerificationRepo(t *testing.T) {
 		t.Fatalf("create ev: %v", err)
 	}
 
-	if got, err := erepo.GetValidByHash(ctx, u.ID.String(), "code1", time.Now()); err != nil {
+	if got, err := erepo.GetValidByHash(ctx, "code1", time.Now()); err != nil {
 		t.Fatalf("GetValid: %v", err)
 	} else if got.CodeHash != ev.CodeHash {
 		t.Fatalf("GetValid mismatch")
@@ -371,7 +371,7 @@ func TestEmailVerificationRepo(t *testing.T) {
 	if ok, err := erepo.Consume(ctx, ev.ID.String()); err != nil || !ok {
 		t.Fatalf("consume failed: %v ok=%v", err, ok)
 	}
-	if got, err := erepo.GetValidByHash(ctx, u.ID.String(), "code1", time.Now()); err == nil || got != nil {
+	if got, err := erepo.GetValidByHash(ctx, "code1", time.Now()); err == nil || got != nil {
 		t.Fatalf("expected not found after consume")
 	}
 
@@ -380,7 +380,7 @@ func TestEmailVerificationRepo(t *testing.T) {
 	if err := erepo.Create(ctx, &expired); err != nil {
 		t.Fatalf("create expired: %v", err)
 	}
-	if got, err := erepo.GetValidByHash(ctx, u.ID.String(), "code2", time.Now()); err == nil || got != nil {
+	if got, err := erepo.GetValidByHash(ctx, "code2", time.Now()); err == nil || got != nil {
 		t.Fatalf("expected not found for expired token")
 	}
 

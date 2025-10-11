@@ -15,6 +15,7 @@ type UserRepo interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	UpdatePassword(ctx context.Context, user *models.User) error
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
+	UpdateIsEmailVerified(ctx context.Context, user *models.User) error
 }
 
 type userRepo struct{ db *gorm.DB }
@@ -61,4 +62,12 @@ func (r *userRepo) ExistsByEmail(ctx context.Context, email string) (bool, error
 		Where("lower(email) = lower(?)", email).
 		Count(&count).Error
 	return count > 0, err
+}
+
+func (r *userRepo) UpdateIsEmailVerified(ctx context.Context, user *models.User) error {
+	return r.db.WithContext(ctx).
+		Model(&models.User{}).
+		Where("id = ?", user.ID).
+		Updates(map[string]any{"is_email_verified": user.IsEmailVerified}).
+		Error
 }
