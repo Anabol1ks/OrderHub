@@ -15,6 +15,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - orderhub-network
 
   redis:
     image: redis:7-alpine
@@ -25,7 +27,30 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - orderhub-network
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    ports:
+      - "8081:8081"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - orderhub-network
+    restart: unless-stopped
 
 volumes:
   db_data:
   redis_data:
+
+networks:
+  orderhub-network:
+    driver: bridge
