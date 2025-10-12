@@ -1,4 +1,4 @@
-module orderhub-utils-go
+module github.com/Anabol1ks/OrderHub/pkg
 
 go 1.25.1
 

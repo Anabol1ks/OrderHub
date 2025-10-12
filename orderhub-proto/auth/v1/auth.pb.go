@@ -7,12 +7,12 @@
 package authv1
 
 import (
+	v1 "github.com/Anabol1ks/OrderHub/orderhub-proto/common/v1"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
-	v1 "orderhub-proto/common/v1"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -1043,7 +1043,7 @@ const file_auth_v1_auth_proto_rawDesc = "" +
 	"\x18RequestEmailVerification\x12(.auth.v1.RequestEmailVerificationRequest\x1a\x16.google.protobuf.Empty\x12\\\n" +
 	"\x18ConfirmEmailVerification\x12(.auth.v1.ConfirmEmailVerificationRequest\x1a\x16.google.protobuf.Empty\x12T\n" +
 	"\x14RequestPasswordReset\x12$.auth.v1.RequestPasswordResetRequest\x1a\x16.google.protobuf.Empty\x12T\n" +
-	"\x14ConfirmPasswordReset\x12$.auth.v1.ConfirmPasswordResetRequest\x1a\x16.google.protobuf.EmptyB\x1fZ\x1dorderhub-proto/auth/v1;authv1b\x06proto3"
+	"\x14ConfirmPasswordReset\x12$.auth.v1.ConfirmPasswordResetRequest\x1a\x16.google.protobuf.EmptyB=Z;github.com/Anabol1ks/OrderHub/orderhub-proto/auth/v1;authv1b\x06proto3"
 
 var (
 	file_auth_v1_auth_proto_rawDescOnce sync.Once

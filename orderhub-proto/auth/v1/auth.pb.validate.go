@@ -18,7 +18,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/anypb"
 
-	commonv1 "orderhub-proto/common/v1"
+	commonv1 "github.com/Anabol1ks/OrderHub/orderhub-proto/common/v1"
 )
 
 // ensure the imports are used

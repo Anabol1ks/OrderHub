@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package orderhub.common.v1;
 
-option go_package = "orderhub-proto/common/v1;commonv1";
+option go_package = "github.com/Anabol1ks/OrderHub/orderhub-proto/common/v1;commonv1";
 
 message UUID { string value = 1; }
 

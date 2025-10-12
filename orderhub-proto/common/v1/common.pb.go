@@ -130,7 +130,7 @@ const file_common_v1_common_proto_rawDesc = "" +
 	"\rROLE_CUSTOMER\x10\x01\x12\x0f\n" +
 	"\vROLE_VENDOR\x10\x02\x12\x0e\n" +
 	"\n" +
-	"ROLE_ADMIN\x10\x03B#Z!orderhub-proto/common/v1;commonv1b\x06proto3"
+	"ROLE_ADMIN\x10\x03BAZ?github.com/Anabol1ks/OrderHub/orderhub-proto/common/v1;commonv1b\x06proto3"
 
 var (
 	file_common_v1_common_proto_rawDescOnce sync.Once

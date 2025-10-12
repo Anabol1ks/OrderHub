@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package auth.v1;
 
-option go_package = "orderhub-proto/auth/v1;authv1";
+option go_package = "github.com/Anabol1ks/OrderHub/orderhub-proto/auth/v1;authv1";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "validate/validate.proto";
