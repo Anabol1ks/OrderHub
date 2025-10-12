@@ -1,0 +1,38 @@
+# Игнорируем файлы и директории при сборке Docker образа
+.env
+.env.example
+.git
+.gitignore
+.vscode
+*.md
+README.md
+
+# Бинарные файлы
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Тестовые файлы
+*_test.go
+test/
+coverage.out
+
+# Временные файлы
+*.tmp
+*.log
+*.swp
+*.swo
+*~
+
+# Docker файлы
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Документация
+docs/
+
+# Makefile
+makefile
+Makefile

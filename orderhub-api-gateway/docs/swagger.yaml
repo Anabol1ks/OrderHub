@@ -1,0 +1,211 @@
+basePath: /
+definitions:
+  dto.ConflictErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
+  dto.FieldError:
+    properties:
+      field:
+        type: string
+      message:
+        type: string
+      tag:
+        type: string
+    type: object
+  dto.InternalErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
+  dto.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.LoginResponse:
+    properties:
+      role:
+        type: string
+      tokens:
+        properties:
+          access_expires_in:
+            type: integer
+          access_token:
+            type: string
+          refresh_expires_in:
+            type: integer
+          refresh_token:
+            type: string
+        type: object
+      user_id:
+        type: string
+    type: object
+  dto.NotFoundErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
+  dto.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.RegisterResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      role:
+        type: string
+      user_id:
+        type: string
+    type: object
+  dto.UnauthorizedErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
+  dto.ValidationErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: API для управления заказами
+  title: OrderHub API
+  version: "1.0"
+paths:
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Авторизует пользователя и выдаёт JWKs токен
+      parameters:
+      - description: Данные авторизации
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "401":
+          description: Ошибка авторизации
+          schema:
+            $ref: '#/definitions/dto.UnauthorizedErrorResponse'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "500":
+          description: Внутренная ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      summary: Авторизация пользователя
+      tags:
+      - auth
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт нового пользователя с ролью CUSTOMER
+      parameters:
+      - description: Данные регистрации
+        in: body
+        name: register
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешная регистрация
+          schema:
+            $ref: '#/definitions/dto.RegisterResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "409":
+          description: Пользователь уже существует
+          schema:
+            $ref: '#/definitions/dto.ConflictErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      summary: Регистрация пользователя
+      tags:
+      - auth
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
