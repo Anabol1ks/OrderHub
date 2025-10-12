@@ -47,7 +47,11 @@ func (s *EmailSender) SendEmail(n model.EmailNotification) error {
 
 	d := gopkgmail.NewDialer(s.cfg.SMTPHost, s.cfg.SMTPPort, s.cfg.SMTPUser, s.cfg.SMTPPassword)
 	d.SSL = true
-	return d.DialAndSend(m)
+	if err := d.DialAndSend(m); err != nil {
+		return fmt.Errorf("failed to send email via SMTP (host=%s:%d, user=%s): %w",
+			s.cfg.SMTPHost, s.cfg.SMTPPort, s.cfg.SMTPUser, err)
+	}
+	return nil
 }
 
 func (s *EmailSender) renderHTML(tmplName string, data map[string]any) (string, error) {
