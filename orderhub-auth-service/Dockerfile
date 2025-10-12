@@ -25,8 +25,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /bin/cleanup ./cm
 # Этап 2: Финальный образ
 FROM alpine:latest
 
-# Устанавливаем сертификаты для HTTPS и timezone data
-RUN apk --no-cache add ca-certificates tzdata
+# Устанавливаем сертификаты для HTTPS, timezone data и dos2unix
+RUN apk --no-cache add ca-certificates tzdata dos2unix
 
 # Создаем непривилегированного пользователя
 RUN addgroup -g 1000 appuser && \
@@ -39,9 +39,9 @@ COPY --from=builder /bin/auth-service /app/auth-service
 COPY --from=builder /bin/migrate /app/migrate
 COPY --from=builder /bin/cleanup /app/cleanup
 
-# Копируем entrypoint скрипт
+# Копируем entrypoint скрипт и конвертируем окончания строк
 COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+RUN dos2unix /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # Меняем владельца файлов
 RUN chown -R appuser:appuser /app
