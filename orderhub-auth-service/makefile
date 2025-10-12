@@ -21,4 +21,4 @@ cleanup-consumed:
 
 .PHONY: test
 test:
-		go test ./test/... -count=1
+		go test -v ./test/... -count=1

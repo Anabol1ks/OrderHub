@@ -45,7 +45,7 @@ func (s *AuthServer) Register(ctx context.Context, req *authv1.RegisterRequest) 
 	u, err := s.userService.Register(ctx, req.Email, req.Password, "ROLE_CUSTOMER")
 	if err != nil {
 		switch {
-		case errors.Is(err, service.ErrAlreadyExists):
+		case errors.Is(err, service.ErrEmailExists):
 			s.log.Warn("failed", zap.String("op", "Register"), zap.Error(err))
 			return nil, status.Errorf(codes.AlreadyExists, "user already exists: %v", err)
 		default:

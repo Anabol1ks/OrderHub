@@ -74,7 +74,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, role string
 		return nil, err
 	}
 	if exists {
-		return nil, ErrAlreadyExists
+		return nil, ErrEmailExists
 	}
 
 	hash, err := s.hasher.Hash(password)
