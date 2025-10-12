@@ -3,7 +3,8 @@ package auth
 import (
 	"api-gateway/internal/dto"
 	"context"
-	authv1 "orderhub-proto/auth/v1"
+
+	authv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/auth/v1"
 )
 
 // Client обёртка над gRPC AuthServiceClient, инкапсулирующая маппинг

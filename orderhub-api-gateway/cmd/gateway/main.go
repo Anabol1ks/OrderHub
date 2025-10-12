@@ -7,8 +7,9 @@ import (
 	"api-gateway/internal/router"
 	"os"
 
-	authv1 "orderhub-proto/auth/v1"
-	"orderhub-utils-go/logger"
+	"github.com/Anabol1ks/orderhub-pkg-proto/pkg/logger"
+
+	authv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/auth/v1"
 
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"

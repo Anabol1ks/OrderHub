@@ -11,14 +11,15 @@ import (
 	gtransport "auth-service/internal/transport/grpc"
 	"context"
 	"net"
-	authv1 "orderhub-proto/auth/v1"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"orderhub-utils-go/database"
-	"orderhub-utils-go/logger"
+	authv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/auth/v1"
+
+	"github.com/Anabol1ks/orderhub-pkg-proto/pkg/database"
+	"github.com/Anabol1ks/orderhub-pkg-proto/pkg/logger"
 
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"

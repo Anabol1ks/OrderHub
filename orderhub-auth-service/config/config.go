@@ -2,11 +2,12 @@ package config
 
 import (
 	"log"
-	"orderhub-utils-go/database"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Anabol1ks/orderhub-pkg-proto/pkg/database"
 
 	"go.uber.org/zap"
 )

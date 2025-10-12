@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	authv1 "orderhub-proto/auth/v1"
-	commonv1 "orderhub-proto/common/v1"
 	"strings"
 	"time"
+
+	authv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/auth/v1"
+	commonv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/common/v1"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"

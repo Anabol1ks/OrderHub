@@ -10,11 +10,11 @@ require (
 	github.com/swaggo/gin-swagger v1.6.1
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.75.1
-	orderhub-proto v0.0.0
-	orderhub-utils-go v0.0.0
 )
 
 require (
+	github.com/Anabol1ks/orderhub-pkg-proto/pkg v0.1.0 // indirect
+	github.com/Anabol1ks/orderhub-pkg-proto/proto v0.1.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
@@ -61,7 +61,3 @@ require (
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
-
-replace orderhub-proto => ../orderhub-proto
-
-replace orderhub-utils-go => ../pkg

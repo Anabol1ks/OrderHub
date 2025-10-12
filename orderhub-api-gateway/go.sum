@@ -1,3 +1,7 @@
+github.com/Anabol1ks/orderhub-pkg-proto/pkg v0.1.0 h1:Su80jBX16YYa+RFg5mVmIxwvXNC1X4JPe4gd5MMDqL8=
+github.com/Anabol1ks/orderhub-pkg-proto/pkg v0.1.0/go.mod h1:PaqWG26qzyVX0ecrnr2+chlU5UfG6RXOAtriQtiJM1c=
+github.com/Anabol1ks/orderhub-pkg-proto/proto v0.1.0 h1:mKsSocWJK2gBB/q1B10gn9UjUHwHMM62dkDrJrSh+Ns=
+github.com/Anabol1ks/orderhub-pkg-proto/proto v0.1.0/go.mod h1:GKFi115K0J+PkZwPzd4WqscOe5j3rsmDMlkJbRIAbC4=
 github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc=
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
 github.com/PuerkitoBio/purell v1.1.1 h1:WEQqlqaGbrPkxLJWfBwQmfEAE1Z7ONdDLqrN38tNFfI=

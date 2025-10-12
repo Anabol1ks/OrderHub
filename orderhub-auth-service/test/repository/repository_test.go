@@ -10,7 +10,7 @@ import (
 	"auth-service/internal/models"
 	"auth-service/internal/repository"
 
-	"orderhub-utils-go/testutil"
+	"github.com/Anabol1ks/orderhub-pkg-proto/pkg/testutil"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"

@@ -6,8 +6,8 @@ import (
 	"context"
 	"os"
 
-	"orderhub-utils-go/database"
-	"orderhub-utils-go/logger"
+	"github.com/Anabol1ks/orderhub-pkg-proto/pkg/database"
+	"github.com/Anabol1ks/orderhub-pkg-proto/pkg/logger"
 
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
