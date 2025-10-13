@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"auth-service/internal/models"
+	"auth-service/internal/producer"
 	repo "auth-service/internal/repository"
 
 	"github.com/google/uuid"
@@ -105,4 +106,8 @@ type CacheClient interface {
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, keys ...string) error
+}
+
+type EmailProducer interface {
+	SendEmail(ctx context.Context, key string, msg producer.EmailMessage) error
 }
