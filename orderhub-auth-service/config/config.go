@@ -17,6 +17,9 @@ type Config struct {
 	JWT   JWT
 	DB    DB
 	Redis Redis
+
+	KafkaBrokers []string
+	KafkaTopic   string
 }
 
 type JWT struct {
@@ -64,6 +67,8 @@ func Load(log *zap.Logger) *Config {
 			DB:         atoiDefault(getEnv("REDIS_DB", log), 0),
 			TTLSeconds: atoiDefault(getEnv("CACHE_TTL_SECONDS", log), 60),
 		},
+		KafkaBrokers: splitAndTrim(os.Getenv("KAFKA_BROKERS")),
+		KafkaTopic:   getEnv("KAFKA_TOPIC_EMAIL", log),
 	}
 }
 
@@ -99,4 +104,18 @@ func atoiDefault(s string, def int) int {
 		return def
 	}
 	return n
+}
+
+func splitAndTrim(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := []string{}
+	for _, p := range strings.Split(s, ",") {
+		pt := strings.TrimSpace(p)
+		if pt != "" {
+			parts = append(parts, pt)
+		}
+	}
+	return parts
 }

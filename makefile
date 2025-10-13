@@ -6,3 +6,6 @@ auth-doc:
 
 auth-migrate:
 	cd ./orderhub-auth-service &&	make migrate
+
+kafka:
+	docker-compose up -d --build

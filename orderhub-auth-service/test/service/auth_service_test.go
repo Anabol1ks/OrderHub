@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"auth-service/internal/models"
+	"auth-service/internal/producer"
 	"auth-service/internal/service"
 	"context"
 	"errors"
@@ -345,6 +346,18 @@ type MockCacheClient struct {
 	DelFunc                func(ctx context.Context, keys ...string) error
 }
 
+// MockEmailProducer
+type MockEmailProducer struct {
+	SendEmailFunc func(ctx context.Context, to string, message producer.EmailMessage) error
+}
+
+func (m *MockEmailProducer) SendEmail(ctx context.Context, to string, message producer.EmailMessage) error {
+	if m.SendEmailFunc != nil {
+		return m.SendEmailFunc(ctx, to, message)
+	}
+	return nil
+}
+
 func (m *MockCacheClient) SetRateLimit(ctx context.Context, key string, ttl time.Duration) error {
 	if m.SetRateLimitFunc != nil {
 		return m.SetRateLimitFunc(ctx, key, ttl)
@@ -419,6 +432,7 @@ func createTestAuthService(
 	passwordReset *MockPasswordResetRepo,
 	emailVerification *MockEmailVerificationRepo,
 	cache *MockCacheClient,
+	emailProducer *MockEmailProducer,
 ) *service.AuthService {
 	return service.NewAuthService(
 		userRepo,
@@ -430,6 +444,7 @@ func createTestAuthService(
 		passwordReset,
 		emailVerification,
 		cache,
+		emailProducer,
 		time.Hour,    // accessTTL
 		24*time.Hour, // refreshTTL
 		zap.NewNop(), // logger
@@ -466,7 +481,7 @@ func TestAuthService_Register_Success(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		userRepo, nil, nil, hasher, nil, nil, nil, emailVerificationRepo, nil,
+		userRepo, nil, nil, hasher, nil, nil, nil, emailVerificationRepo, nil, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -498,7 +513,7 @@ func TestAuthService_Register_EmailExists(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		userRepo, nil, nil, nil, nil, nil, nil, nil, nil,
+		userRepo, nil, nil, nil, nil, nil, nil, nil, nil, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -557,7 +572,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		userRepo, refreshRepo, nil, hasher, tokens, sessions, nil, nil, nil,
+		userRepo, refreshRepo, nil, hasher, tokens, sessions, nil, nil, nil, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -595,7 +610,7 @@ func TestAuthService_Login_InvalidCredentials(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		userRepo, nil, nil, hasher, nil, nil, nil, nil, nil,
+		userRepo, nil, nil, hasher, nil, nil, nil, nil, nil, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -689,7 +704,7 @@ func TestAuthService_Refresh_Success(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		userRepo, refreshRepo, nil, nil, tokens, sessions, nil, nil, cache,
+		userRepo, refreshRepo, nil, nil, tokens, sessions, nil, nil, cache, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -722,7 +737,7 @@ func TestAuthService_Refresh_TokenNotFound(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		nil, refreshRepo, nil, nil, nil, nil, nil, nil, nil,
+		nil, refreshRepo, nil, nil, nil, nil, nil, nil, nil, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -788,7 +803,7 @@ func TestAuthService_LogoutWithAccessToken_Success(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		nil, refreshRepo, nil, nil, tokens, sessions, nil, nil, cache,
+		nil, refreshRepo, nil, nil, tokens, sessions, nil, nil, cache, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -817,7 +832,7 @@ func TestAuthService_GetJwks_Success(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		nil, nil, jwkRepo, nil, nil, nil, nil, nil, nil,
+		nil, nil, jwkRepo, nil, nil, nil, nil, nil, nil, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -875,7 +890,7 @@ func TestAuthService_RequestPasswordReset_Success(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		userRepo, nil, nil, nil, nil, nil, passwordResetRepo, nil, cache,
+		userRepo, nil, nil, nil, nil, nil, passwordResetRepo, nil, cache, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -902,7 +917,7 @@ func TestAuthService_RequestPasswordReset_UserNotFound(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		userRepo, nil, nil, nil, nil, nil, passwordResetRepo, nil, cache,
+		userRepo, nil, nil, nil, nil, nil, passwordResetRepo, nil, cache, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -978,7 +993,7 @@ func TestAuthService_ConfirmPasswordReset_Success(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		userRepo, refreshRepo, nil, hasher, nil, sessions, passwordResetRepo, nil, nil,
+		userRepo, refreshRepo, nil, hasher, nil, sessions, passwordResetRepo, nil, nil, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()
@@ -1012,7 +1027,7 @@ func TestAuthService_LogoutAll_Success(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		nil, refreshRepo, nil, nil, nil, sessions, nil, nil, nil,
+		nil, refreshRepo, nil, nil, nil, sessions, nil, nil, nil, &MockEmailProducer{},
 	)
 
 	count, err := authService.LogoutAll(ctx)
@@ -1046,7 +1061,7 @@ func TestAuthService_Introspect_Success(t *testing.T) {
 	}
 
 	authService := createTestAuthService(
-		nil, nil, nil, nil, tokens, nil, nil, nil, cache,
+		nil, nil, nil, nil, tokens, nil, nil, nil, cache, &MockEmailProducer{},
 	)
 
 	ctx := context.Background()

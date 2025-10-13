@@ -5,6 +5,7 @@ import (
 	"auth-service/internal/cache"
 	"auth-service/internal/cleanup"
 	"auth-service/internal/hashing"
+	"auth-service/internal/producer"
 	"auth-service/internal/repository"
 	"auth-service/internal/service"
 	"auth-service/internal/token"
@@ -47,6 +48,9 @@ func main() {
 
 	repos := repository.New(db)
 
+	emailProducer := producer.NewEmailProducer(cfg.KafkaBrokers, cfg.KafkaTopic)
+	defer emailProducer.Close()
+
 	var redisClient *cache.RedisClient
 	if cfg.Redis.Enabled {
 		var err error
@@ -75,6 +79,7 @@ func main() {
 		repos.Users, repos.RefreshTokens, repos.JWKs,
 		hasher, tokens, repos.Session, repos.PasswordReset, repos.EmailVerification,
 		redisClient,
+		emailProducer,
 		time.Duration(cfg.JWT.AccessExp),
 		time.Duration(cfg.JWT.RefreshExp),
 		log,

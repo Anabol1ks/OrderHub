@@ -2,6 +2,7 @@ package service
 
 import (
 	"auth-service/internal/models"
+	"auth-service/internal/producer"
 	"auth-service/internal/util"
 	"context"
 	"errors"
@@ -23,6 +24,7 @@ type AuthService struct {
 	passwordReset     PasswordResetRepo
 	emailVerification EmailVerificationRepo
 	cache             CacheClient
+	emailProducer     EmailProducer
 
 	accessTTL  time.Duration
 	refreshTTL time.Duration
@@ -47,6 +49,7 @@ func NewAuthService(
 	passwordReset PasswordResetRepo,
 	emailVerification EmailVerificationRepo,
 	cache CacheClient,
+	emailProducer EmailProducer,
 	accessTTL, refreshTTL time.Duration,
 	log *zap.Logger,
 ) *AuthService {
@@ -60,6 +63,7 @@ func NewAuthService(
 		passwordReset:     passwordReset,
 		emailVerification: emailVerification,
 		cache:             cache,
+		emailProducer:     emailProducer,
 
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
@@ -112,8 +116,16 @@ func (s *AuthService) Register(ctx context.Context, email, password, role string
 		return nil, err
 	}
 
-	// TODO: ОТПРАВКА УВЕДОМЛЕНИЯ О ПОДТВЕРЖДЕНИИ EMAIL
-	s.log.Info("Код подтверждения почты", zap.String("code", rng))
+	if err := s.emailProducer.SendEmail(ctx, email, producer.EmailMessage{
+		To:       email,
+		Subject:  "Подтвердите email",
+		Template: "verify_email",
+		Data: map[string]any{
+			"ConfirmURL": "https://app/confirm?token=" + rng,
+		},
+	}); err != nil {
+		s.log.Warn("Couldn't send email via Kafka", zap.Error(err))
+	}
 
 	return u, nil
 }
@@ -366,8 +378,6 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) er
 	}
 
 	codeHash := util.Sha256Base64URL(rng)
-	// TODO: ВРЕМЕННЫЙ ВЫВОД, УБРАТЬ ПОСЛЕ СЕРВИСА УВЕДОМЛЕНИЙ
-	s.log.Info("Код сброса пароля: ", zap.String("code", rng))
 
 	expiresAt := s.now().Add(1 * time.Hour)
 
@@ -390,7 +400,17 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) er
 		}
 	}
 
-	// TODO: ТУТ НАДО БУДЕТ ДОБАВИТЬ ОТПРАВКУ EMAIL С КОДОМ
+	if err := s.emailProducer.SendEmail(ctx, u.Email, producer.EmailMessage{
+		To:       u.Email,
+		Subject:  "Сброс пароля",
+		Template: "reset_password",
+		Data: map[string]any{
+			"ResetCode":     rng,
+			"ExpireMinutes": "60",
+		},
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -503,7 +523,16 @@ func (s *AuthService) RequestEmailVerification(ctx context.Context) error {
 		}
 	}
 
-	// TODO: отправка через Kafka
+	if err := s.emailProducer.SendEmail(ctx, u.Email, producer.EmailMessage{
+		To:       u.Email,
+		Subject:  "Подтвердите email",
+		Template: "verify_email",
+		Data: map[string]any{
+			"ConfirmURL": "https://app/confirm?token=" + rng,
+		},
+	}); err != nil {
+		s.log.Warn("Couldn't send email via Kafka", zap.Error(err))
+	}
 
 	return nil
 }
@@ -536,7 +565,6 @@ func (s *AuthService) RequestEmailVerificationByEmail(ctx context.Context, email
 	}
 
 	codeHash := util.Sha256Base64URL(rng)
-	s.log.Info("Код подтверждения почты", zap.String("code", rng))
 
 	expiresAt := s.now().Add(24 * time.Hour)
 
@@ -553,7 +581,16 @@ func (s *AuthService) RequestEmailVerificationByEmail(ctx context.Context, email
 		return err
 	}
 
-	// TODO: ТУТ НАДО БУДЕТ ДОБАВИТЬ ОТПРАВКУ EMAIL С КОДОМ
+	if err := s.emailProducer.SendEmail(ctx, email, producer.EmailMessage{
+		To:       email,
+		Subject:  "Подтвердите email",
+		Template: "verify_email",
+		Data: map[string]any{
+			"ConfirmURL": "https://app/confirm?token=" + rng,
+		},
+	}); err != nil {
+		s.log.Warn("Couldn't send email via Kafka", zap.Error(err))
+	}
 
 	return nil
 }
