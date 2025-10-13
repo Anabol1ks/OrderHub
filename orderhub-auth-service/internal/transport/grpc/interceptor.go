@@ -29,6 +29,8 @@ func NewAuthUnaryServerInterceptor(tokens AuthDeps) grpc.UnaryServerInterceptor 
 		"/auth.v1.AuthService/RequestPasswordReset":     {},
 		"/auth.v1.AuthService/ConfirmPasswordReset":     {},
 		"/auth.v1.AuthService/Introspect":               {}, // если хочешь — оставь публичным
+		"/grpc.health.v1.Health/Check":                  {},
+		"/grpc.health.v1.Health/List":                   {},
 	}
 
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
