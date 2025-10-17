@@ -77,7 +77,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 // LoginHandler godoc
 // @Summary Авторизация пользователя
-// @Description Авторизует пользователя и выдаёт JWKs токен
+// @Description Авторизует пользователя и выдаёт пару токенов (access/refresh)
 // @Tags auth
 // @Accept json
 // @Produce json
@@ -85,13 +85,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // @Success 200 {object} dto.LoginResponse
 // @Failure 400 {object} dto.ValidationErrorResponse "Неверные данные"
 // @Failure 401 {object} dto.UnauthorizedErrorResponse "Ошибка авторизации"
-// @Failure 500 {object} dto.InternalErrorResponse "Внутренная ошибка"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
 // @Failure 404 {object} dto.NotFoundErrorResponse "Пользователь не найден"
 // @Router /api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.log.Warn("Invalid registration request", zap.Error(err))
+		h.log.Warn("Invalid login request", zap.Error(err))
 		verr := dto.NewValidationError("invalid request body", []dto.FieldError{})
 		c.JSON(http.StatusBadRequest, verr)
 		return
@@ -104,7 +104,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			switch st.Code() {
 			case codes.InvalidArgument:
 				h.log.Warn("Validation failed at auth service", zap.String("email", req.Email), zap.Error(err))
-				c.JSON(http.StatusBadRequest, dto.NewValidationError("validation faild", []dto.FieldError{}))
+				c.JSON(http.StatusBadRequest, dto.NewValidationError("validation failed", []dto.FieldError{}))
 				return
 			case codes.NotFound:
 				h.log.Warn("User not found", zap.String("email", req.Email))
@@ -117,6 +117,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			default:
 				h.log.Error("Internal service error", zap.String("code", st.Code().String()), zap.Error(err))
 				c.JSON(http.StatusInternalServerError, dto.NewInternalError(trimStatusMessage(st.Message())))
+				return
 			}
 		}
 		h.log.Error("Login failed (non-status error)", zap.Error(err))
@@ -125,6 +126,106 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+// RefreshHandler godoc
+// @Summary Обновление токена
+// @Description Обновляет пару токенов по refresh токену
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param refresh body dto.RefreshRequest true "Данные для обновления токена"
+// @Success 200 {object} dto.RefreshResponse
+// @Failure 400 {object} dto.ValidationErrorResponse "Неверные данные"
+// @Failure 401 {object} dto.UnauthorizedErrorResponse "Ошибка авторизации"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
+// @Router /api/v1/auth/refresh [post]
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	var req dto.RefreshRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("Invalid refresh request", zap.Error(err))
+		verr := dto.NewValidationError("invalid request body", []dto.FieldError{})
+		c.JSON(http.StatusBadRequest, verr)
+		return
+	}
+
+	resp, err := h.authClient.Refresh(c.Request.Context(), req)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.InvalidArgument:
+				h.log.Warn("Validation failed at auth service", zap.String("refresh_token", req.RefreshToken), zap.Error(err))
+				c.JSON(http.StatusBadRequest, dto.NewValidationError("validation failed", []dto.FieldError{}))
+				return
+			case codes.NotFound:
+				h.log.Warn("Refresh token not found", zap.String("refresh_token", req.RefreshToken))
+				c.JSON(http.StatusNotFound, dto.NewNotFoundError("user with this refresh token not found"))
+				return
+			case codes.Unauthenticated:
+				h.log.Warn("User not authenticated", zap.String("refresh_token", req.RefreshToken))
+				c.JSON(http.StatusUnauthorized, dto.NewUnauthorizedError("user not authenticated"))
+				return
+			default:
+				h.log.Error("Internal service error", zap.String("code", st.Code().String()), zap.Error(err))
+				c.JSON(http.StatusInternalServerError, dto.NewInternalError(trimStatusMessage(st.Message())))
+			}
+		}
+		h.log.Error("Refresh failed (non-status error)", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, dto.NewInternalError(""))
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// RequestPasswordResetHandler godoc
+// @Summary Запрос на сброс пароля
+// @Description Запрашивает сброс пароля для пользователя по почте
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param email body dto.RequestPasswordResetRequest true "Email пользователя"
+// @Success 200 {object} dto.SuccessResponse "Успешный запрос на сброс пароля"
+// @Failure 400 {object} dto.ValidationErrorResponse "Неверные данные"
+// @Failure 404 {object} dto.NotFoundErrorResponse "Пользователь не найден"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
+// @Router /api/v1/auth/request-password-reset [post]
+func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
+	var req dto.RequestPasswordResetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("Invalid request password request", zap.Error(err))
+		verr := dto.NewValidationError("invalid request body", []dto.FieldError{})
+		c.JSON(http.StatusBadRequest, verr)
+		return
+	}
+
+	err := h.authClient.RequestPasswordReset(c.Request.Context(), req)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.NotFound:
+				h.log.Warn("Password reset request failed (user not found)", zap.String("email", req.Email))
+				c.JSON(http.StatusNotFound, dto.NewNotFoundError("password reset request failed (user not found)"))
+				return
+			case codes.ResourceExhausted:
+				h.log.Warn("Too many requests", zap.String("email", req.Email))
+				c.JSON(http.StatusTooManyRequests, dto.NewTooManyRequestsError("too many requests"))
+				return
+			default:
+				h.log.Error("Internal service error", zap.String("code", st.Code().String()), zap.Error(err))
+				c.JSON(http.StatusInternalServerError, dto.NewInternalError(trimStatusMessage(st.Message())))
+				return
+			}
+		}
+		// Не gRPC статус — внутренняя ошибка
+		h.log.Error("Password reset request failed (non-status error)", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, dto.NewInternalError(""))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewSuccessResponse("password reset requested"))
 }
 
 func trimStatusMessage(msg string) string {

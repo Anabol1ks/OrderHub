@@ -36,6 +36,8 @@ func Router(authClient *auth.Client, log *zap.Logger) *gin.Engine {
 
 	auth.POST("/register", authHandler.Register)
 	auth.POST("/login", authHandler.Login)
+	auth.POST("/refresh", authHandler.Refresh)
+	auth.POST("/request-password-reset", authHandler.RequestPasswordReset)
 
 	return r
 }

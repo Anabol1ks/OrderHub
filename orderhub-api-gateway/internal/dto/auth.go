@@ -70,3 +70,17 @@ type IntrospectResponse struct {
 	ExpUnix int64    `json:"exp_unix"`
 	Scopes  []string `json:"scopes"`
 }
+
+type RequestPasswordResetRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type SuccessResponse struct {
+	Message string `json:"message"`
+}
+
+func NewSuccessResponse(msg string) SuccessResponse {
+	return SuccessResponse{
+		Message: msg,
+	}
+}

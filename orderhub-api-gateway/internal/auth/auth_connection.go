@@ -60,3 +60,36 @@ func (c *Client) Login(ctx context.Context, in dto.LoginRequest) (*dto.LoginResp
 
 	return out, nil
 }
+
+func (c *Client) Refresh(ctx context.Context, in dto.RefreshRequest) (*dto.RefreshResponse, error) {
+	req := &authv1.RefreshRequest{
+		RefreshToken: in.RefreshToken,
+	}
+
+	resp, err := c.grpc.Refresh(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &dto.RefreshResponse{}
+	if t := resp.GetTokens(); t != nil {
+		out.Tokens.AccessToken = t.GetAccessToken()
+		out.Tokens.RefreshToken = t.GetRefreshToken()
+		out.Tokens.AccessExpiresIn = t.GetAccessExpiresIn()
+		out.Tokens.RefreshExpiresIn = t.GetRefreshExpiresIn()
+	}
+	return out, nil
+}
+
+func (c *Client) RequestPasswordReset(ctx context.Context, in dto.RequestPasswordResetRequest) error {
+	req := &authv1.RequestPasswordResetRequest{
+		Email: in.Email,
+	}
+
+	_, err := c.grpc.RequestPasswordReset(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
