@@ -15,9 +15,178 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/auth/confirm-password-reset": {
+            "post": {
+                "description": "Подтверждает сброс пароля для пользователя",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Подтверждение сброса пароля",
+                "parameters": [
+                    {
+                        "description": "Код подтверждения и новый пароль",
+                        "name": "code",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ConfirmPasswordResetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Успешное подтверждение сброса пароля",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ValidationErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Пользователь не найден",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NotFoundErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка",
+                        "schema": {
+                            "$ref": "#/definitions/dto.InternalErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/email/verification/confirm": {
+            "post": {
+                "description": "Подтверждает почту по одноразовому коду из письма",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Подтверждение email по коду",
+                "parameters": [
+                    {
+                        "description": "Код подтверждения",
+                        "name": "confirm",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ConfirmEmailVerificationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Email подтверждён",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные или истёкший код",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ValidationErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Пользователь не найден",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NotFoundErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка",
+                        "schema": {
+                            "$ref": "#/definitions/dto.InternalErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/email/verification/request": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отправляет письмо подтверждения для текущего авторизованного пользователя",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Повторная отправка письма подтверждения",
+                "responses": {
+                    "200": {
+                        "description": "Письмо отправлено",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Неавторизован",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UnauthorizedErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Пользователь не найден",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NotFoundErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Email уже подтверждён",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ConflictErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Слишком много запросов",
+                        "schema": {
+                            "$ref": "#/definitions/dto.TooManyRequestsErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка",
+                        "schema": {
+                            "$ref": "#/definitions/dto.InternalErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/jwks": {
+            "get": {
+                "description": "Получает JSON Web Key Set (JWKS) для проверки подписи JWT",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Получение JWKS",
+                "responses": {}
+            }
+        },
         "/api/v1/auth/login": {
             "post": {
-                "description": "Авторизует пользователя и выдаёт JWKs токен",
+                "description": "Авторизует пользователя и выдаёт пару токенов (access/refresh)",
                 "consumes": [
                     "application/json"
                 ],
@@ -65,7 +234,116 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "Внутренная ошибка",
+                        "description": "Внутренняя ошибка",
+                        "schema": {
+                            "$ref": "#/definitions/dto.InternalErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Логаут по refresh_token (single) или массовый логаут по all=true",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Выход из системы",
+                "parameters": [
+                    {
+                        "description": "Refresh token или all=true",
+                        "name": "logout",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.LogoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Успешный логаут",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ValidationErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Токен не найден",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NotFoundErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка",
+                        "schema": {
+                            "$ref": "#/definitions/dto.InternalErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/refresh": {
+            "post": {
+                "description": "Обновляет пару токенов по refresh токену",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Обновление токена",
+                "parameters": [
+                    {
+                        "description": "Данные для обновления токена",
+                        "name": "refresh",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RefreshRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RefreshResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ValidationErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Ошибка авторизации",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UnauthorizedErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка",
                         "schema": {
                             "$ref": "#/definitions/dto.InternalErrorResponse"
                         }
@@ -124,9 +402,88 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/v1/auth/request-password-reset": {
+            "post": {
+                "description": "Запрашивает сброс пароля для пользователя по почте",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Запрос на сброс пароля",
+                "parameters": [
+                    {
+                        "description": "Email пользователя",
+                        "name": "email",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RequestPasswordResetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Успешный запрос на сброс пароля",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ValidationErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Пользователь не найден",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NotFoundErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка",
+                        "schema": {
+                            "$ref": "#/definitions/dto.InternalErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "dto.ConfirmEmailVerificationRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ConfirmPasswordResetRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "new_password"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "new_password": {
+                    "type": "string",
+                    "minLength": 6
+                }
+            }
+        },
         "dto.ConflictErrorResponse": {
             "type": "object",
             "properties": {
@@ -225,6 +582,17 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.LogoutRequest": {
+            "type": "object",
+            "properties": {
+                "all": {
+                    "type": "boolean"
+                },
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.NotFoundErrorResponse": {
             "type": "object",
             "properties": {
@@ -242,6 +610,39 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.RefreshRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.RefreshResponse": {
+            "type": "object",
+            "properties": {
+                "tokens": {
+                    "type": "object",
+                    "properties": {
+                        "access_expires_in": {
+                            "type": "integer"
+                        },
+                        "access_token": {
+                            "type": "string"
+                        },
+                        "refresh_expires_in": {
+                            "type": "integer"
+                        },
+                        "refresh_token": {
+                            "type": "string"
+                        }
+                    }
                 }
             }
         },
@@ -274,6 +675,45 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.RequestPasswordResetRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TooManyRequestsErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.FieldError"
+                    }
+                },
+                "message": {
                     "type": "string"
                 }
             }

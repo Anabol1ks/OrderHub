@@ -60,6 +60,8 @@ type RateLimitedErrorResponse BaseError
 // Code: "internal_error"
 type InternalErrorResponse BaseError
 
+type TooManyRequestsErrorResponse BaseError
+
 // Helper-функции для быстрого создания
 func NewValidationError(msg string, fields []FieldError) ValidationErrorResponse {
 	return ValidationErrorResponse(BaseError{Code: "validation_error", Message: msg, Fields: fields})
@@ -78,6 +80,9 @@ func NewNotFoundError(msg string) NotFoundErrorResponse {
 }
 func NewRateLimitedError(msg string) RateLimitedErrorResponse {
 	return RateLimitedErrorResponse(BaseError{Code: "rate_limited", Message: msg})
+}
+func NewTooManyRequestsError(msg string) TooManyRequestsErrorResponse {
+	return TooManyRequestsErrorResponse(BaseError{Code: "too_many_requests", Message: msg})
 }
 func NewInternalError(details string) InternalErrorResponse {
 	return InternalErrorResponse(BaseError{Code: "internal_error", Message: "internal server error", Details: details})

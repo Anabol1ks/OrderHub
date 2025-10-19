@@ -1,5 +1,23 @@
 basePath: /
 definitions:
+  dto.ConfirmEmailVerificationRequest:
+    properties:
+      code:
+        type: string
+    required:
+    - code
+    type: object
+  dto.ConfirmPasswordResetRequest:
+    properties:
+      code:
+        type: string
+      new_password:
+        minLength: 6
+        type: string
+    required:
+    - code
+    - new_password
+    type: object
   dto.ConflictErrorResponse:
     properties:
       code:
@@ -64,6 +82,13 @@ definitions:
       user_id:
         type: string
     type: object
+  dto.LogoutRequest:
+    properties:
+      all:
+        type: boolean
+      refresh_token:
+        type: string
+    type: object
   dto.NotFoundErrorResponse:
     properties:
       code:
@@ -76,6 +101,27 @@ definitions:
         type: array
       message:
         type: string
+    type: object
+  dto.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.RefreshResponse:
+    properties:
+      tokens:
+        properties:
+          access_expires_in:
+            type: integer
+          access_token:
+            type: string
+          refresh_expires_in:
+            type: integer
+          refresh_token:
+            type: string
+        type: object
     type: object
   dto.RegisterRequest:
     properties:
@@ -97,6 +143,31 @@ definitions:
       role:
         type: string
       user_id:
+        type: string
+    type: object
+  dto.RequestPasswordResetRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  dto.SuccessResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  dto.TooManyRequestsErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+      message:
         type: string
     type: object
   dto.UnauthorizedErrorResponse:
@@ -131,11 +202,121 @@ info:
   title: OrderHub API
   version: "1.0"
 paths:
+  /api/v1/auth/confirm-password-reset:
+    post:
+      consumes:
+      - application/json
+      description: Подтверждает сброс пароля для пользователя
+      parameters:
+      - description: Код подтверждения и новый пароль
+        in: body
+        name: code
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ConfirmPasswordResetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешное подтверждение сброса пароля
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      summary: Подтверждение сброса пароля
+      tags:
+      - auth
+  /api/v1/auth/email/verification/confirm:
+    post:
+      consumes:
+      - application/json
+      description: Подтверждает почту по одноразовому коду из письма
+      parameters:
+      - description: Код подтверждения
+        in: body
+        name: confirm
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ConfirmEmailVerificationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Email подтверждён
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "400":
+          description: Неверные данные или истёкший код
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      summary: Подтверждение email по коду
+      tags:
+      - auth
+  /api/v1/auth/email/verification/request:
+    post:
+      description: Отправляет письмо подтверждения для текущего авторизованного пользователя
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Письмо отправлено
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "401":
+          description: Неавторизован
+          schema:
+            $ref: '#/definitions/dto.UnauthorizedErrorResponse'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "409":
+          description: Email уже подтверждён
+          schema:
+            $ref: '#/definitions/dto.ConflictErrorResponse'
+        "429":
+          description: Слишком много запросов
+          schema:
+            $ref: '#/definitions/dto.TooManyRequestsErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Повторная отправка письма подтверждения
+      tags:
+      - auth
+  /api/v1/auth/jwks:
+    get:
+      description: Получает JSON Web Key Set (JWKS) для проверки подписи JWT
+      responses: {}
+      summary: Получение JWKS
+      tags:
+      - auth
   /api/v1/auth/login:
     post:
       consumes:
       - application/json
-      description: Авторизует пользователя и выдаёт JWKs токен
+      description: Авторизует пользователя и выдаёт пару токенов (access/refresh)
       parameters:
       - description: Данные авторизации
         in: body
@@ -163,10 +344,80 @@ paths:
           schema:
             $ref: '#/definitions/dto.NotFoundErrorResponse'
         "500":
-          description: Внутренная ошибка
+          description: Внутренняя ошибка
           schema:
             $ref: '#/definitions/dto.InternalErrorResponse'
       summary: Авторизация пользователя
+      tags:
+      - auth
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Логаут по refresh_token (single) или массовый логаут по all=true
+      parameters:
+      - description: Refresh token или all=true
+        in: body
+        name: logout
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешный логаут
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "404":
+          description: Токен не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Выход из системы
+      tags:
+      - auth
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Обновляет пару токенов по refresh токену
+      parameters:
+      - description: Данные для обновления токена
+        in: body
+        name: refresh
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RefreshResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "401":
+          description: Ошибка авторизации
+          schema:
+            $ref: '#/definitions/dto.UnauthorizedErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      summary: Обновление токена
       tags:
       - auth
   /api/v1/auth/register:
@@ -201,6 +452,40 @@ paths:
           schema:
             $ref: '#/definitions/dto.InternalErrorResponse'
       summary: Регистрация пользователя
+      tags:
+      - auth
+  /api/v1/auth/request-password-reset:
+    post:
+      consumes:
+      - application/json
+      description: Запрашивает сброс пароля для пользователя по почте
+      parameters:
+      - description: Email пользователя
+        in: body
+        name: email
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RequestPasswordResetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешный запрос на сброс пароля
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      summary: Запрос на сброс пароля
       tags:
       - auth
 securityDefinitions:

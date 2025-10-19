@@ -3,6 +3,7 @@ package auth
 import (
 	"api-gateway/internal/dto"
 	"context"
+	"strings"
 
 	authv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/auth/v1"
 )
@@ -59,4 +60,132 @@ func (c *Client) Login(ctx context.Context, in dto.LoginRequest) (*dto.LoginResp
 	}
 
 	return out, nil
+}
+
+func (c *Client) Refresh(ctx context.Context, in dto.RefreshRequest) (*dto.RefreshResponse, error) {
+	req := &authv1.RefreshRequest{
+		RefreshToken: in.RefreshToken,
+	}
+
+	resp, err := c.grpc.Refresh(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &dto.RefreshResponse{}
+	if t := resp.GetTokens(); t != nil {
+		out.Tokens.AccessToken = t.GetAccessToken()
+		out.Tokens.RefreshToken = t.GetRefreshToken()
+		out.Tokens.AccessExpiresIn = t.GetAccessExpiresIn()
+		out.Tokens.RefreshExpiresIn = t.GetRefreshExpiresIn()
+	}
+	return out, nil
+}
+
+func (c *Client) RequestPasswordReset(ctx context.Context, in dto.RequestPasswordResetRequest) error {
+	req := &authv1.RequestPasswordResetRequest{
+		Email: in.Email,
+	}
+
+	_, err := c.grpc.RequestPasswordReset(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) ConfirmPasswordReset(ctx context.Context, in dto.ConfirmPasswordResetRequest) error {
+	req := &authv1.ConfirmPasswordResetRequest{
+		Code:        in.Code,
+		NewPassword: in.NewPassword,
+	}
+
+	_, err := c.grpc.ConfirmPasswordReset(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) GetJwks(ctx context.Context) (*dto.GetJwksResponse, error) {
+	req := &authv1.GetJwksRequest{}
+
+	resp, err := c.grpc.GetJwks(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := resp.GetKeys()
+	out := &dto.GetJwksResponse{}
+	for _, k := range keys {
+		jwk := dto.Jwk{
+			Kid: k.GetKid(),
+			Kty: k.GetKty(),
+			Alg: k.GetAlg(),
+			Use: k.GetUse(),
+			N:   k.GetN(),
+			E:   k.GetE(),
+		}
+		out.Keys = append(out.Keys, jwk)
+	}
+	return out, nil
+}
+
+func (c *Client) Introspect(ctx context.Context, in dto.IntrospectRequest) (*dto.IntrospectResponse, error) {
+	req := &authv1.IntrospectRequest{
+		AccessToken: in.AccessToken,
+	}
+
+	resp, err := c.grpc.Introspect(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &dto.IntrospectResponse{
+		Active:  resp.GetActive(),
+		UserId:  resp.GetUserId().GetValue(),
+		Role:    resp.GetRole().String(),
+		ExpUnix: resp.GetExpUnix(),
+	}
+	if scopes := resp.GetScopes(); len(scopes) > 0 {
+		out.Scopes = append(out.Scopes, scopes...)
+	}
+	return out, nil
+}
+
+func (c *Client) Logout(ctx context.Context, in dto.LogoutRequest) error {
+	var req *authv1.LogoutRequest
+	if rt := strings.TrimSpace(in.RefreshToken); rt != "" {
+		req = &authv1.LogoutRequest{Target: &authv1.LogoutRequest_RefreshToken{RefreshToken: rt}}
+	} else {
+		req = &authv1.LogoutRequest{Target: &authv1.LogoutRequest_All{All: in.All}}
+	}
+	_, err := c.grpc.Logout(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) RequestEmailVerification(ctx context.Context) error {
+	req := &authv1.RequestEmailVerificationRequest{}
+
+	_, err := c.grpc.RequestEmailVerification(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) ConfirmEmailVerification(ctx context.Context, in dto.ConfirmEmailVerificationRequest) error {
+	req := &authv1.ConfirmEmailVerificationRequest{Code: in.Code}
+	_, err := c.grpc.ConfirmEmailVerification(ctx, req)
+	if err != nil {
+		return err
+	}
+	return nil
 }
