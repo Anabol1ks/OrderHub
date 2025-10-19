@@ -373,24 +373,6 @@ func (s *AuthServer) RequestEmailVerification(ctx context.Context, req *authv1.R
 				return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
 			}
 		}
-	} else {
-		// Для неавторизованного пользователя (с указанием email)
-		if err := s.userService.RequestEmailVerificationByEmail(ctx, req.Email); err != nil {
-			switch {
-			case errors.Is(err, service.ErrNotFound):
-				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
-				return nil, status.Errorf(codes.NotFound, "user not found")
-			case errors.Is(err, service.ErrEmailAlreadyVerified):
-				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
-				return nil, status.Errorf(codes.FailedPrecondition, "email already verified")
-			case errors.Is(err, service.ErrTooManyRequests):
-				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
-				return nil, status.Errorf(codes.ResourceExhausted, "too many requests")
-			default:
-				s.log.Warn("failed", zap.String("op", "RequestEmailVerification"), zap.Error(err))
-				return nil, status.Errorf(codes.Internal, "internal server error: %v", err)
-			}
-		}
 	}
 
 	s.log.Info("request email verification sent")

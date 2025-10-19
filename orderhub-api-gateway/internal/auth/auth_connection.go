@@ -169,3 +169,23 @@ func (c *Client) Logout(ctx context.Context, in dto.LogoutRequest) error {
 
 	return nil
 }
+
+func (c *Client) RequestEmailVerification(ctx context.Context) error {
+	req := &authv1.RequestEmailVerificationRequest{}
+
+	_, err := c.grpc.RequestEmailVerification(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) ConfirmEmailVerification(ctx context.Context, in dto.ConfirmEmailVerificationRequest) error {
+	req := &authv1.ConfirmEmailVerificationRequest{Code: in.Code}
+	_, err := c.grpc.ConfirmEmailVerification(ctx, req)
+	if err != nil {
+		return err
+	}
+	return nil
+}

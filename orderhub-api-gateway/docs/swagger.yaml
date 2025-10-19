@@ -1,5 +1,12 @@
 basePath: /
 definitions:
+  dto.ConfirmEmailVerificationRequest:
+    properties:
+      code:
+        type: string
+    required:
+    - code
+    type: object
   dto.ConfirmPasswordResetRequest:
     properties:
       code:
@@ -150,6 +157,19 @@ definitions:
       message:
         type: string
     type: object
+  dto.TooManyRequestsErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
   dto.UnauthorizedErrorResponse:
     properties:
       code:
@@ -214,6 +234,75 @@ paths:
           schema:
             $ref: '#/definitions/dto.InternalErrorResponse'
       summary: Подтверждение сброса пароля
+      tags:
+      - auth
+  /api/v1/auth/email/verification/confirm:
+    post:
+      consumes:
+      - application/json
+      description: Подтверждает почту по одноразовому коду из письма
+      parameters:
+      - description: Код подтверждения
+        in: body
+        name: confirm
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ConfirmEmailVerificationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Email подтверждён
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "400":
+          description: Неверные данные или истёкший код
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      summary: Подтверждение email по коду
+      tags:
+      - auth
+  /api/v1/auth/email/verification/request:
+    post:
+      description: Отправляет письмо подтверждения для текущего авторизованного пользователя
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Письмо отправлено
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "401":
+          description: Неавторизован
+          schema:
+            $ref: '#/definitions/dto.UnauthorizedErrorResponse'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "409":
+          description: Email уже подтверждён
+          schema:
+            $ref: '#/definitions/dto.ConflictErrorResponse'
+        "429":
+          description: Слишком много запросов
+          schema:
+            $ref: '#/definitions/dto.TooManyRequestsErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Повторная отправка письма подтверждения
       tags:
       - auth
   /api/v1/auth/jwks:

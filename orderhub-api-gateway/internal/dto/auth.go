@@ -89,3 +89,8 @@ type ConfirmPasswordResetRequest struct {
 	Code        string `json:"code" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
+
+// Email verification
+type ConfirmEmailVerificationRequest struct {
+	Code string `json:"code" binding:"required"`
+}

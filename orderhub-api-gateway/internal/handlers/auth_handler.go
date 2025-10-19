@@ -365,3 +365,107 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	c.JSON(http.StatusOK, dto.NewSuccessResponse("logged out"))
 }
+
+// RequestEmailVerificationHandler godoc
+// @Summary Повторная отправка письма подтверждения
+// @Description Отправляет письмо подтверждения для текущего авторизованного пользователя
+// @Security BearerAuth
+// @Tags auth
+// @Produce json
+// @Success 200 {object} dto.SuccessResponse "Письмо отправлено"
+// @Failure 401 {object} dto.UnauthorizedErrorResponse "Неавторизован"
+// @Failure 404 {object} dto.NotFoundErrorResponse "Пользователь не найден"
+// @Failure 409 {object} dto.ConflictErrorResponse "Email уже подтверждён"
+// @Failure 429 {object} dto.TooManyRequestsErrorResponse "Слишком много запросов"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
+// @Router /api/v1/auth/email/verification/request [post]
+func (h *AuthHandler) RequestEmailVerification(c *gin.Context) {
+	// Требует авторизации: берём токен из заголовка и пробрасываем в gRPC
+	ctx := c.Request.Context()
+	if authz := c.GetHeader("Authorization"); strings.TrimSpace(authz) != "" {
+		if token, ok := middleware.ExtractBearerToken(authz); ok && token != "" {
+			md := metadata.Pairs("authorization", "Bearer "+token)
+			ctx = metadata.NewOutgoingContext(ctx, md)
+		} else {
+			c.JSON(http.StatusUnauthorized, dto.NewUnauthorizedError("invalid Authorization header"))
+			return
+		}
+	} else {
+		c.JSON(http.StatusUnauthorized, dto.NewUnauthorizedError("missing Authorization header"))
+		return
+	}
+
+	if err := h.authClient.RequestEmailVerification(ctx); err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.NotFound:
+				h.log.Warn("User not found for email verification request")
+				c.JSON(http.StatusNotFound, dto.NewNotFoundError("user not found"))
+				return
+			case codes.FailedPrecondition:
+				h.log.Warn("Email already verified")
+				c.JSON(http.StatusConflict, dto.NewConflictError("email already verified"))
+				return
+			case codes.ResourceExhausted:
+				// Может означать лимит частоты или уже идёт процесс верификации
+				h.log.Warn("Email verification request rate limited or in progress")
+				c.JSON(http.StatusTooManyRequests, dto.NewTooManyRequestsError("too many requests"))
+				return
+			default:
+				h.log.Error("Internal service error", zap.String("code", st.Code().String()), zap.Error(err))
+				c.JSON(http.StatusInternalServerError, dto.NewInternalError(trimStatusMessage(st.Message())))
+				return
+			}
+		}
+		h.log.Error("Request email verification failed (non-status error)", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, dto.NewInternalError(""))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewSuccessResponse("verification email requested"))
+}
+
+// ConfirmEmailVerificationHandler godoc
+// @Summary Подтверждение email по коду
+// @Description Подтверждает почту по одноразовому коду из письма
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param confirm body dto.ConfirmEmailVerificationRequest true "Код подтверждения"
+// @Success 200 {object} dto.SuccessResponse "Email подтверждён"
+// @Failure 400 {object} dto.ValidationErrorResponse "Неверные данные или истёкший код"
+// @Failure 404 {object} dto.NotFoundErrorResponse "Пользователь не найден"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
+// @Router /api/v1/auth/email/verification/confirm [post]
+func (h *AuthHandler) ConfirmEmailVerification(c *gin.Context) {
+	var req dto.ConfirmEmailVerificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("Invalid confirm email verification request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, dto.NewValidationError("invalid request body", []dto.FieldError{}))
+		return
+	}
+
+	if err := h.authClient.ConfirmEmailVerification(c.Request.Context(), req); err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.InvalidArgument:
+				h.log.Warn("Invalid or expired verification code")
+				c.JSON(http.StatusBadRequest, dto.NewValidationError("invalid or expired code", []dto.FieldError{}))
+				return
+			case codes.NotFound:
+				h.log.Warn("User not found for email confirmation")
+				c.JSON(http.StatusNotFound, dto.NewNotFoundError("user not found"))
+				return
+			default:
+				h.log.Error("Internal service error", zap.String("code", st.Code().String()), zap.Error(err))
+				c.JSON(http.StatusInternalServerError, dto.NewInternalError(trimStatusMessage(st.Message())))
+				return
+			}
+		}
+		h.log.Error("Confirm email verification failed (non-status error)", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, dto.NewInternalError(""))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewSuccessResponse("email verified"))
+}

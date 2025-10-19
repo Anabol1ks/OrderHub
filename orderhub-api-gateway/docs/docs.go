@@ -67,6 +67,113 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/auth/email/verification/confirm": {
+            "post": {
+                "description": "Подтверждает почту по одноразовому коду из письма",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Подтверждение email по коду",
+                "parameters": [
+                    {
+                        "description": "Код подтверждения",
+                        "name": "confirm",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ConfirmEmailVerificationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Email подтверждён",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные или истёкший код",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ValidationErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Пользователь не найден",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NotFoundErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка",
+                        "schema": {
+                            "$ref": "#/definitions/dto.InternalErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/email/verification/request": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отправляет письмо подтверждения для текущего авторизованного пользователя",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Повторная отправка письма подтверждения",
+                "responses": {
+                    "200": {
+                        "description": "Письмо отправлено",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Неавторизован",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UnauthorizedErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Пользователь не найден",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NotFoundErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Email уже подтверждён",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ConflictErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Слишком много запросов",
+                        "schema": {
+                            "$ref": "#/definitions/dto.TooManyRequestsErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка",
+                        "schema": {
+                            "$ref": "#/definitions/dto.InternalErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/auth/jwks": {
             "get": {
                 "description": "Получает JSON Web Key Set (JWKS) для проверки подписи JWT",
@@ -350,6 +457,17 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.ConfirmEmailVerificationRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.ConfirmPasswordResetRequest": {
             "type": "object",
             "required": [
@@ -575,6 +693,26 @@ const docTemplate = `{
         "dto.SuccessResponse": {
             "type": "object",
             "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TooManyRequestsErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.FieldError"
+                    }
+                },
                 "message": {
                     "type": "string"
                 }
