@@ -22,7 +22,6 @@ func NewAuthUnaryServerInterceptor(tokens AuthDeps) grpc.UnaryServerInterceptor 
 		"/auth.v1.AuthService/Register": {},
 		"/auth.v1.AuthService/Login":    {},
 		"/auth.v1.AuthService/Refresh":  {},
-		"/auth.v1.AuthService/Logout":   {},
 		"/auth.v1.AuthService/GetJwks":  {},
 		// "/auth.v1.AuthService/RequestEmailVerification": {},
 		"/auth.v1.AuthService/ConfirmEmailVerification": {},

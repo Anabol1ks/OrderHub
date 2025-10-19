@@ -84,3 +84,8 @@ func NewSuccessResponse(msg string) SuccessResponse {
 		Message: msg,
 	}
 }
+
+type ConfirmPasswordResetRequest struct {
+	Code        string `json:"code" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}

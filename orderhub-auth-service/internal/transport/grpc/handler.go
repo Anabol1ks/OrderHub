@@ -340,7 +340,7 @@ func (s *AuthServer) ConfirmPasswordReset(ctx context.Context, req *authv1.Confi
 			return nil, status.Errorf(codes.InvalidArgument, "invalid or expired code")
 		case errors.Is(err, service.ErrNotFound):
 			s.log.Warn("failed", zap.String("op", "ConfirmPasswordReset"), zap.Error(err))
-			return nil, status.Errorf(codes.NotFound, "user not found")
+			return nil, status.Errorf(codes.NotFound, "code not found")
 		default:
 			s.log.Warn("failed", zap.String("op", "ConfirmPasswordReset"), zap.Error(err))
 			return nil, status.Errorf(codes.Internal, "internal server error: %v", err)

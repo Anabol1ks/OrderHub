@@ -6,10 +6,12 @@ import (
 
 	"api-gateway/internal/auth"
 	"api-gateway/internal/dto"
+	"api-gateway/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -228,6 +230,70 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.NewSuccessResponse("password reset requested"))
 }
 
+// ConfirmPasswordResetHandler godoc
+// @Summary Подтверждение сброса пароля
+// @Description Подтверждает сброс пароля для пользователя
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param code body dto.ConfirmPasswordResetRequest true "Код подтверждения и новый пароль"
+// @Success 200 {object} dto.SuccessResponse "Успешное подтверждение сброса пароля"
+// @Failure 400 {object} dto.ValidationErrorResponse "Неверные данные"
+// @Failure 404 {object} dto.NotFoundErrorResponse "Пользователь не найден"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
+// @Router /api/v1/auth/confirm-password-reset [post]
+func (h *AuthHandler) ConfirmPasswordReset(c *gin.Context) {
+	var req dto.ConfirmPasswordResetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("Invalid confirm password reset request", zap.Error(err))
+		verr := dto.NewValidationError("invalid request body", []dto.FieldError{})
+		c.JSON(http.StatusBadRequest, verr)
+		return
+	}
+
+	err := h.authClient.ConfirmPasswordReset(c.Request.Context(), req)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.NotFound:
+				h.log.Warn("Password reset confirm failed (code not found)", zap.String("code", req.Code))
+				c.JSON(http.StatusNotFound, dto.NewNotFoundError("password reset confirm failed (code not found)"))
+				return
+			case codes.InvalidArgument:
+				h.log.Warn("Password reset confirm failed (invalid argument)", zap.String("code", req.Code))
+				c.JSON(http.StatusBadRequest, dto.NewValidationError("password reset confirm failed (invalid argument)", []dto.FieldError{}))
+				return
+			default:
+				h.log.Error("Internal service error", zap.String("code", st.Code().String()), zap.Error(err))
+				c.JSON(http.StatusInternalServerError, dto.NewInternalError(trimStatusMessage(st.Message())))
+				return
+			}
+		}
+		h.log.Error("Confirm password reset failed (non-status error)", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, dto.NewInternalError(""))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewSuccessResponse("password reset confirmed"))
+}
+
+// GetJwksHandler godoc
+// @Summary Получение JWKS
+// @Description Получает JSON Web Key Set (JWKS) для проверки подписи JWT
+// @Tags auth
+// @Router /api/v1/auth/jwks [get]
+func (h *AuthHandler) GetJwks(c *gin.Context) {
+	resp, err := h.authClient.GetJwks(c.Request.Context())
+	if err != nil {
+		h.log.Error("Failed to get JWKS", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, dto.NewInternalError(""))
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 func trimStatusMessage(msg string) string {
 	// Убираем возможные приставки вроде "validation failed:" чтобы клиенту было чище
 	lower := strings.ToLower(msg)
@@ -239,4 +305,63 @@ func trimStatusMessage(msg string) string {
 		}
 	}
 	return msg
+}
+
+// LogoutHandler godoc
+// @Summary Выход из системы
+// @Description Логаут по refresh_token (single) или массовый логаут по all=true
+// @Security BearerAuth
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param logout body dto.LogoutRequest true "Refresh token или all=true"
+// @Success 200 {object} dto.SuccessResponse "Успешный логаут"
+// @Failure 400 {object} dto.ValidationErrorResponse "Неверные данные"
+// @Failure 404 {object} dto.NotFoundErrorResponse "Токен не найден"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
+// @Router /api/v1/auth/logout [post]
+func (h *AuthHandler) Logout(c *gin.Context) {
+	var req dto.LogoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("Invalid logout request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, dto.NewValidationError("invalid request body", []dto.FieldError{}))
+		return
+	}
+
+	if strings.TrimSpace(req.RefreshToken) == "" && !req.All {
+		c.JSON(http.StatusBadRequest, dto.NewValidationError("specify refresh_token or all=true", []dto.FieldError{}))
+		return
+	}
+
+	ctx := c.Request.Context()
+	if authz := c.GetHeader("Authorization"); strings.TrimSpace(authz) != "" {
+		if token, ok := middleware.ExtractBearerToken(authz); ok && token != "" {
+			// Собираем корректный заголовок без мусора
+			md := metadata.Pairs("authorization", "Bearer "+token)
+			ctx = metadata.NewOutgoingContext(ctx, md)
+		}
+	}
+
+	err := h.authClient.Logout(ctx, req)
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.InvalidArgument:
+				c.JSON(http.StatusBadRequest, dto.NewValidationError(trimStatusMessage(st.Message()), []dto.FieldError{}))
+				return
+			case codes.NotFound:
+				c.JSON(http.StatusNotFound, dto.NewNotFoundError("refresh token not found or revoked"))
+				return
+			default:
+				h.log.Error("Internal service error", zap.String("code", st.Code().String()), zap.Error(err))
+				c.JSON(http.StatusInternalServerError, dto.NewInternalError(trimStatusMessage(st.Message())))
+				return
+			}
+		}
+		h.log.Error("Logout failed (non-status error)", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, dto.NewInternalError(""))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewSuccessResponse("logged out"))
 }

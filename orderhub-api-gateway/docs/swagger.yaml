@@ -1,5 +1,16 @@
 basePath: /
 definitions:
+  dto.ConfirmPasswordResetRequest:
+    properties:
+      code:
+        type: string
+      new_password:
+        minLength: 6
+        type: string
+    required:
+    - code
+    - new_password
+    type: object
   dto.ConflictErrorResponse:
     properties:
       code:
@@ -62,6 +73,13 @@ definitions:
             type: string
         type: object
       user_id:
+        type: string
+    type: object
+  dto.LogoutRequest:
+    properties:
+      all:
+        type: boolean
+      refresh_token:
         type: string
     type: object
   dto.NotFoundErrorResponse:
@@ -164,6 +182,47 @@ info:
   title: OrderHub API
   version: "1.0"
 paths:
+  /api/v1/auth/confirm-password-reset:
+    post:
+      consumes:
+      - application/json
+      description: Подтверждает сброс пароля для пользователя
+      parameters:
+      - description: Код подтверждения и новый пароль
+        in: body
+        name: code
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ConfirmPasswordResetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешное подтверждение сброса пароля
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      summary: Подтверждение сброса пароля
+      tags:
+      - auth
+  /api/v1/auth/jwks:
+    get:
+      description: Получает JSON Web Key Set (JWKS) для проверки подписи JWT
+      responses: {}
+      summary: Получение JWKS
+      tags:
+      - auth
   /api/v1/auth/login:
     post:
       consumes:
@@ -200,6 +259,42 @@ paths:
           schema:
             $ref: '#/definitions/dto.InternalErrorResponse'
       summary: Авторизация пользователя
+      tags:
+      - auth
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Логаут по refresh_token (single) или массовый логаут по all=true
+      parameters:
+      - description: Refresh token или all=true
+        in: body
+        name: logout
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешный логаут
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/dto.ValidationErrorResponse'
+        "404":
+          description: Токен не найден
+          schema:
+            $ref: '#/definitions/dto.NotFoundErrorResponse'
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            $ref: '#/definitions/dto.InternalErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Выход из системы
       tags:
       - auth
   /api/v1/auth/refresh:

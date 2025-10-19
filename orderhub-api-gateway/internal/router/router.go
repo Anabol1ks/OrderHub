@@ -3,6 +3,7 @@ package router
 import (
 	"api-gateway/internal/auth"
 	"api-gateway/internal/handlers"
+	"api-gateway/internal/middleware"
 
 	"github.com/gin-contrib/cors"
 	swaggerFiles "github.com/swaggo/files"
@@ -38,6 +39,10 @@ func Router(authClient *auth.Client, log *zap.Logger) *gin.Engine {
 	auth.POST("/login", authHandler.Login)
 	auth.POST("/refresh", authHandler.Refresh)
 	auth.POST("/request-password-reset", authHandler.RequestPasswordReset)
+	auth.POST("/confirm-password-reset", authHandler.ConfirmPasswordReset)
+	auth.GET("/jwks", authHandler.GetJwks)
+	// защищаем logout валидным access-токеном
+	auth.POST("/logout", middleware.AuthRequired(authClient, log), authHandler.Logout)
 
 	return r
 }
