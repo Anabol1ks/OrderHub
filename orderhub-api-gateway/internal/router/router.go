@@ -45,9 +45,7 @@ func Router(authClient *auth.Client, log *zap.Logger) *gin.Engine {
 	auth.POST("/logout", middleware.AuthRequired(authClient, log), authHandler.Logout)
 
 	// email verification
-	// Публичное подтверждение по коду
 	r.POST("/api/v1/auth/email/verification/confirm", authHandler.ConfirmEmailVerification)
-	// Повторная отправка письма — только для авторизованных
 	auth.POST("/email/verification/request", middleware.AuthRequired(authClient, log), authHandler.RequestEmailVerification)
 
 	return r
