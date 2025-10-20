@@ -4,6 +4,10 @@ run:
 migrate:
 	go run cmd/migrate/main.go
 
+.PHONY: test
+test:
+	go test -v ./test/... -count=1
+
 .PHONY: docker-up
 docker-up:
 	docker-compose up -d --build
