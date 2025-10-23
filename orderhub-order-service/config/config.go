@@ -9,8 +9,9 @@ import (
 )
 
 type Config struct {
-	Port string
-	DB   DB
+	Port     string
+	DB       DB
+	AuthAddr string
 	// 	Redis Redis
 
 	// 	KafkaBrokers []string
@@ -31,7 +32,8 @@ type DB struct {
 
 func Load(log *zap.Logger) *Config {
 	return &Config{
-		Port: getEnv("APP_PORT", log),
+		Port:     getEnv("APP_PORT", log),
+		AuthAddr: getEnv("AUTH_ADDR", log),
 		DB: DB{
 			Config: database.Config{
 				Host:     getEnv("DB_HOST", log),

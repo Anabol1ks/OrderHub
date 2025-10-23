@@ -84,7 +84,7 @@ func (s *orderService) CreateOrder(ctx context.Context, in CreateOrderInput) (*m
 			})
 		}
 
-		order := &models.Order{
+		order = &models.Order{
 			UserID:          userID,
 			Status:          models.OrderStatusPending,
 			TotalPriceCents: total,
