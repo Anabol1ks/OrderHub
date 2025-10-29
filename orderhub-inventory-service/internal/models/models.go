@@ -47,7 +47,7 @@ const (
 
 type Reservation struct {
 	ID        uuid.UUID         `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	OrderID   uuid.UUID         `gorm:"type:uuid;not null;index"`
+	OrderID   uuid.UUID         `gorm:"type:uuid;not null;index;uniqueIndex:ux_reservations_order_product"`
 	ProductID uuid.UUID         `gorm:"type:uuid;not null;index;uniqueIndex:ux_reservations_order_product"`
 	Quantity  int32             `gorm:"not null"`
 	Status    ReservationStatus `gorm:"type:text;not null;default:'PENDING';index"`
