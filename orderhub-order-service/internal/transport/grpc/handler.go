@@ -27,7 +27,7 @@ func NewOrderServer(svc service.OrderService) *OrderServer {
 
 func (s *OrderServer) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) (*orderv1.CreateOrderResponse, error) {
 	if err := req.ValidateAll(); err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
 	}
 
 	in, err := toCreateInput(req)
