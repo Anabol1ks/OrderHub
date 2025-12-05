@@ -30,8 +30,11 @@ func (h *Handler) CreateProduct(ctx context.Context, req *inventoryv1.CreateProd
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 	}
-
-	in, err := toProductInput(req.GetProduct())
+	uid, ok := service.UserIDFromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+	in, err := toProductInput(req.GetProduct(), uid)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "input: %v", err)
 	}
@@ -286,17 +289,30 @@ func (h *Handler) Release(ctx context.Context, req *inventoryv1.ReleaseRequest) 
 	return &emptypb.Empty{}, nil
 }
 
+func (h *Handler) Confirm(ctx context.Context, req *inventoryv1.ConfirmRequest) (*emptypb.Empty, error) {
+	if v, ok := any(req).(interface{ ValidateAll() error }); ok {
+		if err := v.ValidateAll(); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
+		}
+	}
+
+	oid, err := fromUUID(req.GetOrderId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid order_id: %v", err)
+	}
+	if _, err := h.svc.Confirm(ctx, oid); err != nil {
+		return nil, toStatusErr(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // хелп
-func toProductInput(pi *inventoryv1.ProductInput) (service.ProductInput, error) {
+func toProductInput(pi *inventoryv1.ProductInput, vendorID uuid.UUID) (service.ProductInput, error) {
 	if pi == nil {
 		return service.ProductInput{}, errors.New("product is required")
 	}
-	vid, err := fromUUID(pi.GetVendorId())
-	if err != nil {
-		return service.ProductInput{}, err
-	}
 	return service.ProductInput{
-		VendorID:     vid,
+		VendorID:     vendorID,
 		SKU:          pi.GetSku(),
 		Name:         pi.GetName(),
 		Description:  pi.GetDescription(),
@@ -399,7 +415,8 @@ func toStatusErr(err error) error {
 	case errors.Is(err, service.ErrSKUAlreadyExists),
 		errors.Is(err, service.ErrCurrencyNotRUB),
 		errors.Is(err, service.ErrInvalidQuantity),
-		errors.Is(err, service.ErrReservationEmpty):
+		errors.Is(err, service.ErrReservationEmpty),
+		errors.Is(err, service.ErrReservationExists):
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, service.ErrOutOfStock):
 		return status.Error(codes.FailedPrecondition, err.Error())

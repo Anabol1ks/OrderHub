@@ -274,6 +274,16 @@ func (s *inventoryService) Reserve(ctx context.Context, orderID uuid.UUID, items
 		return ReserveResult{}, nil
 	}
 
+	// Проверяем, существует ли уже резервация для этого заказа
+	existing, err := s.repo.Reservations.ListByOrder(ctx, orderID)
+	if err != nil {
+		return ReserveResult{}, err
+	}
+	if len(existing) > 0 {
+		// Заказ уже имеет резервации - не допускаем повторную резервацию
+		return ReserveResult{}, ErrReservationExists
+	}
+
 	res := ReserveResult{
 		OK:     make([]ReserveOkItem, 0, len(items)),
 		Failed: make([]ReserveFailedItem, 0),
@@ -281,7 +291,7 @@ func (s *inventoryService) Reserve(ctx context.Context, orderID uuid.UUID, items
 
 	now := s.now()
 
-	err := s.repo.WithTx(func(tx *repository.Repository) error {
+	err = s.repo.WithTx(func(tx *repository.Repository) error {
 		for _, it := range items {
 			if it.Quantity == 0 {
 				return ErrInvalidQuantity

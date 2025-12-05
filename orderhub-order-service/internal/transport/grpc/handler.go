@@ -64,7 +64,7 @@ func (s *OrderServer) ListOrders(ctx context.Context, req *orderv1.ListOrdersReq
 			return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
 		}
 	}
-	f, err := toListFilter(req)
+	f, err := toListFilter(ctx, req)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "filter: %v", err)
 	}
@@ -122,24 +122,43 @@ func toCreateInput(req *orderv1.CreateOrderRequest) (service.CreateOrderInput, e
 	}, nil
 }
 
-func toListFilter(req *orderv1.ListOrdersRequest) (service.ListFilter, error) {
+func toListFilter(ctx context.Context, req *orderv1.ListOrdersRequest) (service.ListFilter, error) {
 	var (
 		uidPtr *uuid.UUID
 		stPtr  *models.OrderStatus
 	)
-	if u := req.GetUserId(); u != nil && u.Value != "" {
-		uid, err := fromUUID(u)
-		if err != nil {
-			return service.ListFilter{}, err
-		}
-		uidPtr = &uid
-	}
+
+	// статус
 	if req.GetStatus() != commonv1.OrderStatus_ORDER_STATUS_UNSPECIFIED {
 		s := fromProtoStatus(req.GetStatus())
 		stPtr = &s
 	}
+
+	// разбор user_id: только админ может указывать чужой user_id
+	if u := req.GetUserId(); u != nil && u.Value != "" {
+		// проверим роль в контексте
+		if role, ok := service.RoleFromContext(ctx); !ok || role != service.RoleAdmin {
+			// non-admin не может фильтровать по user_id
+			return service.ListFilter{}, errors.New("user_id filter allowed only for admin")
+		}
+		id, err := fromUUID(u)
+		if err != nil {
+			return service.ListFilter{}, err
+		}
+		uidPtr = &id
+	} else {
+		// если не указан user_id: для не-admin — по умолчанию ограничиваем по токену
+		if role, ok := service.RoleFromContext(ctx); ok && role != service.RoleAdmin {
+			if uid, ok2 := service.UserIDFromContext(ctx); ok2 {
+				uidPtr = &uid
+			}
+		}
+		// для admin uidPtr остаётся nil => просмотр всех пользователей
+	}
+
 	limit := int(req.GetLimit())
 	offset := int(req.GetOffset())
+
 	return service.ListFilter{
 		UserID: uidPtr,
 		Status: stPtr,

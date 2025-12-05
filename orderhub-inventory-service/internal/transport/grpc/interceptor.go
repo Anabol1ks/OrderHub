@@ -31,9 +31,9 @@ func NewAuthUnaryServerInterceptor(client AuthClient) grpc.UnaryServerIntercepto
 		"/grpc.health.v1.Health/Watch":                                   {},
 		"/grpc.health.v1.Health/List":                                    {},
 		"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo": {},
-		"inventory.v1.InventoryService/GetProduct":                       {},
-		"inventory.v1.InventoryService/ListProducts":                     {},
-		"inventory.v1.InventoryService/BatchGetProducts":                 {},
+		"/inventory.v1.InventoryService/GetProduct":                      {},
+		"/inventory.v1.InventoryService/ListProducts":                    {},
+		"/inventory.v1.InventoryService/BatchGetProducts":                {},
 	}
 
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {

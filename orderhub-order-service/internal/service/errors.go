@@ -6,6 +6,7 @@ var (
 	ErrUnauthorized     = errors.New("unauthorized")
 	ErrForbidden        = errors.New("forbidden")
 	ErrOrderNotFound    = errors.New("order not found")
+	ErrProductNotFound  = errors.New("product not found or inactive")
 	ErrEmptyItems       = errors.New("empty items")
 	ErrQuantityInvalid  = errors.New("quantity must be > 0")
 	ErrCurrencyMismatch = errors.New("currency mismatch")

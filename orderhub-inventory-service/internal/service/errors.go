@@ -9,6 +9,7 @@ var (
 	ErrProductNotFound                     = errors.New("product not found")
 	ErrInventoryNotFound                   = errors.New("inventory not found")
 	ErrReservationEmpty                    = errors.New("reservation items empty")
+	ErrReservationExists                   = errors.New("reservation already exists for this order")
 	ErrCannotDeleteProductWithReservations = errors.New("cannot delete product with reserved stock")
 
 	ErrSKUAlreadyExists = errors.New("sku already exists for vendor")

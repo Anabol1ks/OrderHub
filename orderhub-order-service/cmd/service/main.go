@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	authv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/auth/v1"
+	inventoryv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/inventory/v1"
 	orderv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/order/v1"
 
 	"github.com/Anabol1ks/orderhub-pkg-proto/pkg/database"
@@ -40,15 +41,6 @@ func main() {
 	defer database.CloseDB(db, log)
 
 	repos := repository.New(db)
-	pricing := service.StaticPricing{}
-
-	// Event bus is optional for now (nil disables publishing)
-	svc := service.NewOrderService(repos, pricing, nil)
-
-	lis, err := net.Listen("tcp", cfg.Port)
-	if err != nil {
-		log.Fatal("failed to listen", zap.Error(err))
-	}
 
 	// Connect to Auth service for token introspection
 	authConn, err := grpc.Dial(cfg.AuthAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -57,6 +49,25 @@ func main() {
 	}
 	defer authConn.Close()
 	authClient := authv1.NewAuthServiceClient(authConn)
+
+	// Connect to Inventory service for pricing
+	inventoryConn, err := grpc.Dial(cfg.InventoryAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatal("failed to connect to inventory service", zap.Error(err))
+	}
+	defer inventoryConn.Close()
+	inventoryClient := inventoryv1.NewInventoryServiceClient(inventoryConn)
+
+	// Create pricing provider from inventory client
+	pricing := service.NewInventoryPricingClient(inventoryClient)
+
+	// Event bus is optional for now (nil disables publishing)
+	svc := service.NewOrderService(repos, pricing, nil)
+
+	lis, err := net.Listen("tcp", cfg.Port)
+	if err != nil {
+		log.Fatal("failed to listen", zap.Error(err))
+	}
 
 	authInterceptor := gtransport.NewAuthUnaryServerInterceptor(authClient)
 

@@ -56,15 +56,27 @@ func (s *orderService) CreateOrder(ctx context.Context, in CreateOrderInput) (*m
 		currency = currencyRUB
 	)
 
+	// Собираем все productIDs для батч-запроса
+	productIDs := make([]uuid.UUID, 0, len(in.Items))
+	for _, it := range in.Items {
+		productIDs = append(productIDs, it.ProductID)
+	}
+
+	// Получаем все цены за один запрос
+	prices, err := s.pricing.GetPrices(ctx, productIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	err = s.repo.Orders.WithTx(ctx, func(or repository.OrderRepo, ir repository.OrderItemRepo) error {
 		for _, it := range in.Items {
 			if it.Quantity == 0 {
 				return ErrQuantityInvalid
 			}
 
-			price, err := s.pricing.GetPrice(ctx, it.ProductID)
-			if err != nil {
-				return err
+			price, ok := prices[it.ProductID]
+			if !ok {
+				return ErrProductNotFound
 			}
 
 			if price.CurrencyCode != currencyRUB {
