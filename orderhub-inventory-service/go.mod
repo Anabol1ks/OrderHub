@@ -4,7 +4,6 @@ go 1.25.1
 
 require (
 	github.com/Anabol1ks/orderhub-pkg-proto/pkg v0.1.0
-	github.com/Anabol1ks/orderhub-pkg-proto/proto v0.1.4
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	go.uber.org/zap v1.27.0
@@ -15,6 +14,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
+	github.com/Anabol1ks/orderhub-pkg-proto/proto v0.2.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect

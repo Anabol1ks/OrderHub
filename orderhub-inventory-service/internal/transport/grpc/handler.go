@@ -169,6 +169,123 @@ func (h *Handler) BatchGetProducts(ctx context.Context, req *inventoryv1.BatchGe
 	return out, nil
 }
 
+func (h *Handler) GetStock(ctx context.Context, req *inventoryv1.GetStockRequest) (*inventoryv1.GetStockResponse, error) {
+	if v, ok := any(req).(interface{ ValidateAll() error }); ok {
+		if err := v.ValidateAll(); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
+		}
+	}
+
+	id, err := fromUUID(req.GetProductId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid product_id: %v", err)
+	}
+	inv, err := h.svc.GetStock(ctx, id)
+	if err != nil {
+		return nil, toStatusErr(err)
+	}
+	return &inventoryv1.GetStockResponse{Stock: toProtoStock(inv)}, nil
+}
+
+func (h *Handler) SetStock(ctx context.Context, req *inventoryv1.SetStockRequest) (*inventoryv1.SetStockResponse, error) {
+	if v, ok := any(req).(interface{ ValidateAll() error }); ok {
+		if err := v.ValidateAll(); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
+		}
+	}
+	id, err := fromUUID(req.GetProductId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid product_id: %v", err)
+	}
+
+	inv, err := h.svc.SetStock(ctx, id, req.GetAvailable())
+	if err != nil {
+		return nil, toStatusErr(err)
+	}
+	return &inventoryv1.SetStockResponse{Stock: toProtoStock(inv)}, nil
+}
+
+func (h *Handler) AdjustStock(ctx context.Context, req *inventoryv1.AdjustStockRequest) (*inventoryv1.AdjustStockResponse, error) {
+	if v, ok := any(req).(interface{ ValidateAll() error }); ok {
+		if err := v.ValidateAll(); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
+		}
+	}
+	id, err := fromUUID(req.GetProductId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid product_id: %v", err)
+	}
+	inv, err := h.svc.AdjustStock(ctx, id, req.GetDelta())
+	if err != nil {
+		return nil, toStatusErr(err)
+	}
+	return &inventoryv1.AdjustStockResponse{Stock: toProtoStock(inv)}, nil
+}
+
+func (h *Handler) Reserve(ctx context.Context, req *inventoryv1.ReserveRequest) (*inventoryv1.ReserveResponse, error) {
+	if v, ok := any(req).(interface{ ValidateAll() error }); ok {
+		if err := v.ValidateAll(); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
+		}
+	}
+
+	oid, err := fromUUID(req.GetOrderId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid order_id: %v", err)
+	}
+	items := make([]service.ReserveItem, 0, len(req.GetItems()))
+	for _, it := range req.GetItems() {
+		pid, err := fromUUID(it.GetProductId())
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid product_id: %v", err)
+		}
+		items = append(items, service.ReserveItem{
+			ProductID: pid,
+			Quantity:  it.GetQuantity(),
+		})
+	}
+
+	res, err := h.svc.Reserve(ctx, oid, items)
+	if err != nil {
+		return nil, toStatusErr(err)
+	}
+	out := &inventoryv1.ReserveResponse{
+		OkItems:     make([]*inventoryv1.ReserveOkItem, 0, len(res.OK)),
+		FailedItems: make([]*inventoryv1.ReserveFailedItem, 0, len(res.Failed)),
+	}
+	for _, okIt := range res.OK {
+		out.OkItems = append(out.OkItems, &inventoryv1.ReserveOkItem{
+			ProductId: toUUID(okIt.ProductID),
+			Quantity:  okIt.Quantity,
+		})
+	}
+	for _, f := range res.Failed {
+		out.FailedItems = append(out.FailedItems, &inventoryv1.ReserveFailedItem{
+			ProductId: toUUID(f.ProductID),
+			Requested: f.Requested,
+			Reason:    f.Reason,
+		})
+	}
+	return out, nil
+}
+
+func (h *Handler) Release(ctx context.Context, req *inventoryv1.ReleaseRequest) (*emptypb.Empty, error) {
+	if v, ok := any(req).(interface{ ValidateAll() error }); ok {
+		if err := v.ValidateAll(); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
+		}
+	}
+
+	oid, err := fromUUID(req.GetOrderId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid order_id: %v", err)
+	}
+	if _, err := h.svc.Release(ctx, oid); err != nil {
+		return nil, toStatusErr(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // хелп
 func toProductInput(pi *inventoryv1.ProductInput) (service.ProductInput, error) {
 	if pi == nil {
