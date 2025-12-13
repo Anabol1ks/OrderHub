@@ -6,6 +6,7 @@ import (
 	"order-service/internal/repository"
 	"time"
 
+	"github.com/Anabol1ks/orderhub-pkg-proto/authctx"
 	"github.com/google/uuid"
 )
 
@@ -27,12 +28,11 @@ func NewOrderService(repo *repository.Repository, pricing PricingProvider, event
 	}
 }
 
-func requireAuth(ctx context.Context) (uuid.UUID, Role, error) {
-	uid, ok := UserIDFromContext(ctx)
+func requireAuth(ctx context.Context) (uuid.UUID, string, error) {
+	uid, role, ok := authctx.Require(ctx)
 	if !ok {
 		return uuid.Nil, "", ErrUnauthorized
 	}
-	role, _ := RoleFromContext(ctx) // если нет — считаем customer по умолчанию
 	return uid, role, nil
 }
 
@@ -164,7 +164,7 @@ func (s *orderService) GetOrder(ctx context.Context, id uuid.UUID) (*models.Orde
 	if err != nil {
 		return nil, err
 	}
-	isAdmin := role == RoleAdmin
+	isAdmin := role == "ROLE_ADMIN"
 
 	var ord *models.Order
 	if isAdmin {
@@ -186,7 +186,7 @@ func (s *orderService) ListOrders(ctx context.Context, f ListFilter) ([]models.O
 	if err != nil {
 		return nil, 0, err
 	}
-	isAdmin := role == RoleAdmin
+	isAdmin := role == "ROLE_ADMIN"
 
 	if !isAdmin {
 		f.UserID = &userID
@@ -220,7 +220,7 @@ func (s *orderService) CancelOrder(ctx context.Context, id uuid.UUID, reason *st
 	if err != nil {
 		return nil, err
 	}
-	isAdmin := role == RoleAdmin
+	isAdmin := role == "ROLE_ADMIN"
 
 	ord, err := s.repo.Orders.GetByID(ctx, id)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Anabol1ks/orderhub-pkg-proto/authctx"
 	"github.com/google/uuid"
 )
 
@@ -22,17 +23,11 @@ func NewInventoryService(repo *repository.Repository) *inventoryService {
 	}
 }
 
-func (s *inventoryService) requireAuth(ctx context.Context) (uuid.UUID, Role, error) {
-	uid, ok := UserIDFromContext(ctx)
+func (s *inventoryService) requireAuth(ctx context.Context) (uuid.UUID, string, error) {
+	uid, role, ok := authctx.Require(ctx)
 	if !ok {
 		return uuid.Nil, "", ErrUnauthorized
 	}
-
-	role, ok := RoleFromContext(ctx)
-	if !ok {
-		return uuid.Nil, "", ErrUnauthorized
-	}
-
 	return uid, role, nil
 }
 
@@ -46,11 +41,11 @@ func (s *inventoryService) CreateProduct(ctx context.Context, in ProductInput) (
 		return nil, err
 	}
 
-	if role != RoleAdmin && role != RoleVendor {
+	if role != "ROLE_ADMIN" && role != "ROLE_VENDOR" {
 		return nil, ErrForbidden
 	}
 
-	if role == RoleVendor && in.VendorID != reqUser {
+	if role == "ROLE_VENDOR" && in.VendorID != reqUser {
 		return nil, ErrForbidden
 	}
 
@@ -105,7 +100,7 @@ func (s *inventoryService) UpdateProduct(ctx context.Context, productID uuid.UUI
 		return nil, ErrProductNotFound
 	}
 
-	if role != RoleAdmin && !(role == RoleVendor && p.VendorID == reqUser) {
+	if role != "ROLE_ADMIN" && !(role == "ROLE_VENDOR" && p.VendorID == reqUser) {
 		return nil, ErrForbidden
 	}
 
@@ -189,7 +184,7 @@ func (s *inventoryService) DeleteProduct(ctx context.Context, productID uuid.UUI
 	if p == nil {
 		return false, ErrProductNotFound
 	}
-	if role != RoleAdmin && !(role == RoleVendor && p.VendorID == reqUser) {
+	if role != "ROLE_ADMIN" && !(role == "ROLE_VENDOR" && p.VendorID == reqUser) {
 		return false, ErrForbidden
 	}
 
@@ -233,7 +228,7 @@ func (s *inventoryService) SetStock(ctx context.Context, productID uuid.UUID, av
 		return nil, ErrProductNotFound
 	}
 
-	if role != RoleAdmin && !(role == RoleVendor && p.VendorID == reqUser) {
+	if role != "ROLE_ADMIN" && !(role == "ROLE_VENDOR" && p.VendorID == reqUser) {
 		return nil, ErrForbidden
 	}
 
@@ -257,7 +252,7 @@ func (s *inventoryService) AdjustStock(ctx context.Context, productID uuid.UUID,
 	if p == nil {
 		return nil, ErrProductNotFound
 	}
-	if role != RoleAdmin && !(role == RoleVendor && p.VendorID == reqUser) {
+	if role != "ROLE_ADMIN" && !(role == "ROLE_VENDOR" && p.VendorID == reqUser) {
 		return nil, ErrForbidden
 	}
 

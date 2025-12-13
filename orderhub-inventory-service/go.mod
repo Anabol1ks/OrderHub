@@ -3,6 +3,7 @@ module inventory-service
 go 1.25.1
 
 require (
+	github.com/Anabol1ks/orderhub-pkg-proto/authctx v0.1.1
 	github.com/Anabol1ks/orderhub-pkg-proto/pkg v0.1.0
 	github.com/Anabol1ks/orderhub-pkg-proto/proto v0.2.5
 	github.com/google/uuid v1.6.0

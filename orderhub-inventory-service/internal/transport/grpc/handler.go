@@ -6,6 +6,7 @@ import (
 	"inventory-service/internal/models"
 	"inventory-service/internal/service"
 
+	"github.com/Anabol1ks/orderhub-pkg-proto/authctx"
 	commonv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/common/v1"
 	inventoryv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/inventory/v1"
 	"github.com/google/uuid"
@@ -30,7 +31,7 @@ func (h *Handler) CreateProduct(ctx context.Context, req *inventoryv1.CreateProd
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 	}
-	uid, ok := service.UserIDFromContext(ctx)
+	uid, ok := authctx.UserIDFromContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}

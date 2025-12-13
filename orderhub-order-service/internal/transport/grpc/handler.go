@@ -6,6 +6,7 @@ import (
 	"order-service/internal/models"
 	"order-service/internal/service"
 
+	"github.com/Anabol1ks/orderhub-pkg-proto/authctx"
 	commonv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/common/v1"
 	orderv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/order/v1"
 	"github.com/google/uuid"
@@ -137,7 +138,7 @@ func toListFilter(ctx context.Context, req *orderv1.ListOrdersRequest) (service.
 	// разбор user_id: только админ может указывать чужой user_id
 	if u := req.GetUserId(); u != nil && u.Value != "" {
 		// проверим роль в контексте
-		if role, ok := service.RoleFromContext(ctx); !ok || role != service.RoleAdmin {
+		if role, ok := authctx.RoleFromContext(ctx); !ok || role != "ROLE_ADMIN" {
 			// non-admin не может фильтровать по user_id
 			return service.ListFilter{}, errors.New("user_id filter allowed only for admin")
 		}
@@ -148,8 +149,8 @@ func toListFilter(ctx context.Context, req *orderv1.ListOrdersRequest) (service.
 		uidPtr = &id
 	} else {
 		// если не указан user_id: для не-admin — по умолчанию ограничиваем по токену
-		if role, ok := service.RoleFromContext(ctx); ok && role != service.RoleAdmin {
-			if uid, ok2 := service.UserIDFromContext(ctx); ok2 {
+		if role, ok := authctx.RoleFromContext(ctx); ok && role != "ROLE_ADMIN" {
+			if uid, ok2 := authctx.UserIDFromContext(ctx); ok2 {
 				uidPtr = &uid
 			}
 		}

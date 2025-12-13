@@ -4,10 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"inventory-service/internal/service"
-
+	"github.com/Anabol1ks/orderhub-pkg-proto/authctx"
 	authv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/auth/v1"
-	commonv1 "github.com/Anabol1ks/orderhub-pkg-proto/proto/common/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -61,21 +59,26 @@ func NewAuthUnaryServerInterceptor(client AuthClient) grpc.UnaryServerIntercepto
 		// Validate via Auth service
 		resp, err := client.Introspect(ctx, &authv1.IntrospectRequest{AccessToken: access})
 		if err != nil {
-			return nil, status.Errorf(codes.Unauthenticated, "introspection failed: %v", err)
+			return nil, status.Error(codes.Unauthenticated, "introspect failed")
 		}
-		if resp == nil || !resp.GetActive() || resp.GetUserId() == nil || resp.GetUserId().GetValue() == "" {
-			return nil, status.Error(codes.Unauthenticated, "invalid or inactive token")
+		if !resp.GetActive() {
+			return nil, status.Error(codes.Unauthenticated, "token inactive")
 		}
+
 		uid, err := uuid.Parse(resp.GetUserId().GetValue())
 		if err != nil {
-			return nil, status.Error(codes.Unauthenticated, "invalid user id")
+			return nil, status.Error(codes.Unauthenticated, "invalid user_id in introspect")
+		}
+
+		role := resp.GetRole().String()
+		if role == "" || role == "ROLE_UNSPECIFIED" {
+			return nil, status.Error(codes.Unauthenticated, "empty role in introspect")
 		}
 
 		// Inject identity
-		ctx = service.WithUserID(ctx, uid)
-		if role := resp.GetRole(); role != commonv1.Role_ROLE_UNSPECIFIED {
-			ctx = service.WithRole(ctx, service.Role(role.String()))
-		}
+		ctx = authctx.WithUserID(ctx, uid)
+		ctx = authctx.WithRole(ctx, role)
+
 		return handler(ctx, req)
 	}
 }
