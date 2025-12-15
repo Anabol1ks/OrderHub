@@ -95,7 +95,9 @@ func (s *AuthService) Register(ctx context.Context, email, password, role string
 	}
 
 	if err := s.users.Create(ctx, u); err != nil {
-		return nil, err
+		if IsUniqueViolation(err) {
+			return nil, ErrEmailExists
+		}
 	}
 
 	rng, err := nanorand.Gen(10)

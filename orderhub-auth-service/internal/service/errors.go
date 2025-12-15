@@ -1,6 +1,11 @@
 package service
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
+)
 
 var (
 	ErrNotFound                    = errors.New("not found")
@@ -16,3 +21,21 @@ var (
 	ErrEmailVerificationInProgress = errors.New("email verification in progress")
 	ErrEmailAlreadyVerified        = errors.New("email already verified")
 )
+
+func IsUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == "23505"
+	}
+
+	return false
+}
