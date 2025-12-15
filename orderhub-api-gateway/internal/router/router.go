@@ -11,11 +11,12 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Router(authClient *auth.Client, log *zap.Logger) *gin.Engine {
+func Router(authClient *auth.Client, orderConn *grpc.ClientConn, log *zap.Logger) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
@@ -45,7 +46,7 @@ func Router(authClient *auth.Client, log *zap.Logger) *gin.Engine {
 		})
 	})
 
-	orders.Register(admin, nil, 3*time.Second)
+	orders.Register(admin, orderConn, 3*time.Second)
 
 	authHandler := handlers.NewAuthHandler(authClient, log)
 	auth := r.Group("/api/v1/auth")

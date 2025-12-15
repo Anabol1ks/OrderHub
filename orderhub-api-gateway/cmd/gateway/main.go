@@ -46,10 +46,19 @@ func main() {
 	}
 	defer authConn.Close()
 
+	orderConn, err := grpc.NewClient(
+		cfg.OrderAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		log.Error("order service dial failed: ", zap.Error(err))
+	}
+	defer orderConn.Close()
+
 	rawAuthClient := authv1.NewAuthServiceClient(authConn)
 	authClient := auth.NewClient(rawAuthClient)
 
-	r := router.Router(authClient, log)
+	r := router.Router(authClient, orderConn, log)
 
 	if err := r.Run(":8080"); err != nil {
 		log.Fatal("failed to run http server", zap.Error(err))

@@ -7,12 +7,14 @@ import (
 )
 
 type Config struct {
-	AuthAddr string
+	AuthAddr  string
+	OrderAddr string
 }
 
 func Load(log *zap.Logger) *Config {
 	return &Config{
-		AuthAddr: getEnv("AUTH_SERVICE_ADDR", log),
+		AuthAddr:  getEnv("AUTH_SERVICE_ADDR", log),
+		OrderAddr: getEnv("ORDER_SERVICE_ADDR", log),
 	}
 }
 

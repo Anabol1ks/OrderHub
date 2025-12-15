@@ -1,6 +1,8 @@
 package orders
 
 import (
+	"api-gateway/internal/dto"
+	"api-gateway/internal/transport/grpcmeta"
 	"context"
 	"net/http"
 	"strconv"
@@ -29,10 +31,23 @@ func NewHandler(conn *grpc.ClientConn, timeout time.Duration) *Handler {
 	}
 }
 
-type cancelReq struct {
-	Reason string `json:"reason"`
-}
-
+// ListOrders godoc
+// @Summary Получение списка заказов
+// @Description Получает список заказов с возможностью фильтрации по пользователю и статусу
+// @Security BearerAuth
+// @Tags admin/orders
+// @Accept json
+// @Produce json
+// @Param limit query int false "Количество заказов" default(20)
+// @Param offset query int false "Смещение" default(0)
+// @Param user_id query string false "UUID пользователя"
+// @Param status query string false "Статус заказа (PENDING, CONFIRMED, CANCELLED)"
+// @Success 200 {object} dto.ListOrdersResponse "Список заказов"
+// @Failure 400 {object} dto.ErrorResponse "Неверные параметры"
+// @Failure 401 {object} dto.UnauthorizedErrorResponse "Неавторизован"
+// @Failure 403 {object} dto.ForbiddenErrorResponse "Доступ запрещён"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
+// @Router /admin/orders [get]
 func (h *Handler) List(c *gin.Context) {
 	limit := parseIntDefault(c.Query("limit"), 20)
 	offset := parseIntDefault(c.Query("offset"), 0)
@@ -50,6 +65,8 @@ func (h *Handler) List(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), h.timeout)
 	defer cancel()
+
+	ctx = grpcmeta.WithAuthorization(ctx, c.GetHeader("Authorization"))
 
 	resp, err := h.client.ListOrders(ctx, &orderv1.ListOrdersRequest{
 		Limit:  int32(limit),
@@ -70,6 +87,21 @@ func (h *Handler) List(c *gin.Context) {
 	})
 }
 
+// GetOrder godoc
+// @Summary Получение заказа по ID
+// @Description Получает детальную информацию о заказе по его ID
+// @Security BearerAuth
+// @Tags admin/orders
+// @Accept json
+// @Produce json
+// @Param order_id path string true "UUID заказа"
+// @Success 200 {object} dto.GetOrderResponse "Информация о заказе"
+// @Failure 400 {object} dto.ErrorResponse "Неверный UUID"
+// @Failure 401 {object} dto.UnauthorizedErrorResponse "Неавторизован"
+// @Failure 403 {object} dto.ForbiddenErrorResponse "Доступ запрещён"
+// @Failure 404 {object} dto.NotFoundErrorResponse "Заказ не найден"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
+// @Router /admin/orders/{order_id} [get]
 func (h *Handler) Get(c *gin.Context) {
 	orderID, ok := parseUUIDParam(c, "order_id")
 	if !ok {
@@ -78,6 +110,8 @@ func (h *Handler) Get(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), h.timeout)
 	defer cancel()
+
+	ctx = grpcmeta.WithAuthorization(ctx, c.GetHeader("Authorization"))
 
 	resp, err := h.client.GetOrder(ctx, &orderv1.GetOrderRequest{
 		OrderId: &commonv1.UUID{Value: orderID},
@@ -92,16 +126,34 @@ func (h *Handler) Get(c *gin.Context) {
 	})
 }
 
+// CancelOrder godoc
+// @Summary Отмена заказа
+// @Description Отменяет заказ с указанием причины
+// @Security BearerAuth
+// @Tags admin/orders
+// @Accept json
+// @Produce json
+// @Param order_id path string true "UUID заказа"
+// @Param cancel body dto.CancelOrderRequest false "Причина отмены"
+// @Success 200 {object} dto.CancelOrderResponse "Отменённый заказ"
+// @Failure 400 {object} dto.ErrorResponse "Неверный UUID"
+// @Failure 401 {object} dto.UnauthorizedErrorResponse "Неавторизован"
+// @Failure 403 {object} dto.ForbiddenErrorResponse "Доступ запрещён"
+// @Failure 404 {object} dto.NotFoundErrorResponse "Заказ не найден"
+// @Failure 500 {object} dto.InternalErrorResponse "Внутренняя ошибка"
+// @Router /admin/orders/{order_id}/cancel [post]
 func (h *Handler) Cancel(c *gin.Context) {
 	orderID, ok := parseUUIDParam(c, "order_id")
 	if !ok {
 		return
 	}
-	var body cancelReq
+	var body dto.CancelOrderRequest
 	_ = c.ShouldBindJSON(&body) // reason может быть пустым
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), h.timeout)
 	defer cancel()
+
+	ctx = grpcmeta.WithAuthorization(ctx, c.GetHeader("Authorization"))
 
 	resp, err := h.client.CancelOrder(ctx, &orderv1.CancelOrderRequest{
 		OrderId: &commonv1.UUID{Value: orderID},

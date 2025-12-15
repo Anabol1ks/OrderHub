@@ -62,7 +62,14 @@ type InternalErrorResponse BaseError
 
 type TooManyRequestsErrorResponse BaseError
 
+// ErrorResponse общий формат ошибки для swagger (400)
+// Code: "error"
+type ErrorResponse BaseError
+
 // Helper-функции для быстрого создания
+func NewErrorResponse(msg string) ErrorResponse {
+	return ErrorResponse(BaseError{Code: "error", Message: msg})
+}
 func NewValidationError(msg string, fields []FieldError) ValidationErrorResponse {
 	return ValidationErrorResponse(BaseError{Code: "validation_error", Message: msg, Fields: fields})
 }
