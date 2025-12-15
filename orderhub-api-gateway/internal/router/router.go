@@ -3,6 +3,7 @@ package router
 import (
 	"api-gateway/internal/auth"
 	"api-gateway/internal/handlers"
+	"api-gateway/internal/http/admin/orders"
 	"api-gateway/internal/middleware"
 	"time"
 
@@ -43,6 +44,8 @@ func Router(authClient *auth.Client, log *zap.Logger) *gin.Engine {
 			"role":    c.GetString("role"),
 		})
 	})
+
+	orders.Register(admin, nil, 3*time.Second)
 
 	authHandler := handlers.NewAuthHandler(authClient, log)
 	auth := r.Group("/api/v1/auth")
