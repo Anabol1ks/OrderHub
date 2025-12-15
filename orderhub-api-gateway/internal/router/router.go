@@ -4,6 +4,7 @@ import (
 	"api-gateway/internal/auth"
 	"api-gateway/internal/handlers"
 	"api-gateway/internal/middleware"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	swaggerFiles "github.com/swaggo/files"
@@ -29,6 +30,17 @@ func Router(authClient *auth.Client, log *zap.Logger) *gin.Engine {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status": "ok",
+		})
+	})
+
+	adminMW := middleware.NewAdminMiddleware(authClient.GetGrpcClient(), 3*time.Second)
+	admin := r.Group("/admin")
+	admin.Use(adminMW.RequireAdmin())
+	admin.GET("/ping", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"ok":      true,
+			"user_id": c.GetString("user_id"),
+			"role":    c.GetString("role"),
 		})
 	})
 

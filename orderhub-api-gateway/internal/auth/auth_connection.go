@@ -16,6 +16,8 @@ type Client struct {
 
 func NewClient(grpcClient authv1.AuthServiceClient) *Client { return &Client{grpc: grpcClient} }
 
+func (c *Client) GetGrpcClient() authv1.AuthServiceClient { return c.grpc }
+
 func (c *Client) Register(ctx context.Context, in dto.RegisterRequest) (*dto.RegisterResponse, error) {
 	req := &authv1.RegisterRequest{
 		Email:    in.Email,
